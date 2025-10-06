@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
+import { BlockchainService } from '../../services/blockchainService';
+import { useWalletStore } from '../../store/walletStore';
 
 interface Token {
   id: string;
@@ -15,6 +17,9 @@ const Tokens: React.FC = () => {
   const [tokens, setTokens] = useState<Token[]>([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const { wallet } = useWalletStore();
   const [formData, setFormData] = useState({
     name: '',
     symbol: '',
@@ -23,52 +28,87 @@ const Tokens: React.FC = () => {
   });
 
   useEffect(() => {
-    // Mock tokens for demonstration
-    const mockTokens: Token[] = [
-      {
-        id: '1',
-        name: 'My Awesome Token',
-        symbol: 'MAT',
-        totalSupply: '1000000',
-        decimals: 18,
-        contractAddress: '0x1234567890123456789012345678901234567890',
-        createdAt: new Date(Date.now() - 86400000)
-      },
-      {
-        id: '2',
-        name: 'Test Coin',
-        symbol: 'TEST',
-        totalSupply: '500000',
-        decimals: 18,
-        contractAddress: '0x0987654321098765432109876543210987654321',
-        createdAt: new Date(Date.now() - 172800000)
-      }
-    ];
-    setTokens(mockTokens);
-  }, []);
+    if (wallet?.address) {
+      fetchUserTokens();
+    } else {
+      setIsLoading(false);
+    }
+  }, [wallet?.address]);
+
+  const fetchUserTokens = async () => {
+    if (!wallet?.address) return;
+    
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      console.log('Fetching tokens from blockchain for address:', wallet.address);
+      const fetchedTokens = await BlockchainService.getUserCreatedTokens(wallet.address);
+      
+      // Transform blockchain data to component format
+      const formattedTokens: Token[] = fetchedTokens.map((token) => ({
+        id: token.address,
+        name: token.name,
+        symbol: token.symbol,
+        totalSupply: token.totalSupply,
+        decimals: token.decimals,
+        contractAddress: token.address,
+        createdAt: new Date() // We don't have creation date from blockchain, so use current date
+      }));
+      
+      console.log('Fetched tokens:', formattedTokens);
+      setTokens(formattedTokens);
+    } catch (err) {
+      console.error('Failed to fetch tokens:', err);
+      setError(err instanceof Error ? err.message : 'Failed to fetch tokens');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleCreateToken = async () => {
     if (!formData.name || !formData.symbol || !formData.totalSupply) return;
+    if (!wallet?.privateKey) {
+      alert('Please connect your wallet first');
+      return;
+    }
 
     setIsCreating(true);
+    setError(null);
     
-    // Simulate token creation
-    setTimeout(() => {
-      const newToken: Token = {
-        id: Date.now().toString(),
-        name: formData.name,
-        symbol: formData.symbol,
-        totalSupply: formData.totalSupply,
-        decimals: parseInt(formData.decimals),
-        contractAddress: `0x${Math.random().toString(16).substring(2, 42)}`,
-        createdAt: new Date()
-      };
-      
-      setTokens(prev => [newToken, ...prev]);
-      setShowCreateModal(false);
-      setFormData({ name: '', symbol: '', totalSupply: '', decimals: '18' });
+    try {
+      console.log('Creating token with blockchain service...');
+      const result = await BlockchainService.createToken(
+        {
+          name: formData.name,
+          symbol: formData.symbol,
+          totalSupply: formData.totalSupply,
+          decimals: formData.decimals
+        },
+        wallet.privateKey
+      );
+
+      if (result.success) {
+        console.log('Token created successfully:', result);
+        alert(`Token created successfully! Transaction: ${result.hash}`);
+        
+        // Close modal and reset form
+        setShowCreateModal(false);
+        setFormData({ name: '', symbol: '', totalSupply: '', decimals: '18' });
+        
+        // Refresh token list from blockchain
+        await fetchUserTokens();
+      } else {
+        throw new Error(result.error || 'Token creation failed');
+      }
+    } catch (err) {
+      console.error('Token creation failed:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Failed to create token';
+      setError(errorMessage);
+      alert(`Failed to create token: ${errorMessage}`);
+    } finally {
       setIsCreating(false);
-    }, 2000);
+    }
   };
 
   const shortenAddress = (address: string) => {
@@ -83,32 +123,71 @@ const Tokens: React.FC = () => {
     <div className="tokens-container">
       <div className="tokens-header">
         <h1>My Tokens</h1>
-        <motion.button
-          className="create-token-btn"
-          onClick={() => setShowCreateModal(true)}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-        >
-          + Create Token
-        </motion.button>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          <motion.button
+            className="create-token-btn"
+            onClick={fetchUserTokens}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            disabled={isLoading || !wallet}
+            style={{ padding: '10px 20px' }}
+          >
+            🔄 Refresh
+          </motion.button>
+          <motion.button
+            className="create-token-btn"
+            onClick={() => setShowCreateModal(true)}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            disabled={!wallet}
+          >
+            + Create Token
+          </motion.button>
+        </div>
       </div>
 
-      <div className="tokens-grid">
-        {tokens.length === 0 ? (
-          <div className="no-tokens">
-            <div className="no-tokens-icon">🪙</div>
-            <h3>No tokens created yet</h3>
-            <p>Create your first BEP-20 token on opBNB</p>
-            <motion.button
-              className="create-first-token-btn"
-              onClick={() => setShowCreateModal(true)}
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-            >
-              Create Your First Token
-            </motion.button>
-          </div>
-        ) : (
+      {error && (
+        <div className="error-message" style={{ 
+          padding: '15px', 
+          marginBottom: '20px', 
+          backgroundColor: 'rgba(239, 68, 68, 0.1)', 
+          border: '1px solid rgba(239, 68, 68, 0.3)', 
+          borderRadius: '8px',
+          color: '#ef4444'
+        }}>
+          ⚠️ {error}
+        </div>
+      )}
+
+      {!wallet ? (
+        <div className="no-tokens">
+          <div className="no-tokens-icon">🔐</div>
+          <h3>Wallet Not Connected</h3>
+          <p>Please connect your wallet to view your tokens</p>
+        </div>
+      ) : isLoading ? (
+        <div className="no-tokens">
+          <div className="no-tokens-icon">⏳</div>
+          <h3>Loading your tokens...</h3>
+          <p>Fetching data from blockchain</p>
+        </div>
+      ) : (
+        <div className="tokens-grid">
+          {tokens.length === 0 ? (
+            <div className="no-tokens">
+              <div className="no-tokens-icon">🪙</div>
+              <h3>No tokens created yet</h3>
+              <p>Create your first BEP-20 token on opBNB</p>
+              <motion.button
+                className="create-first-token-btn"
+                onClick={() => setShowCreateModal(true)}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                Create Your First Token
+              </motion.button>
+            </div>
+          ) : (
           tokens.map((token, index) => (
             <motion.div
               key={token.id}
@@ -148,10 +227,6 @@ const Tokens: React.FC = () => {
                     </motion.button>
                   </div>
                 </div>
-                <div className="token-detail">
-                  <span className="label">Created:</span>
-                  <span className="value">{token.createdAt.toLocaleDateString()}</span>
-                </div>
               </div>
 
               <div className="token-actions">
@@ -175,7 +250,8 @@ const Tokens: React.FC = () => {
             </motion.div>
           ))
         )}
-      </div>
+        </div>
+      )}
 
       {/* Create Token Modal */}
       {showCreateModal && (
