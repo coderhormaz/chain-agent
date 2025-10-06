@@ -637,4 +637,69 @@ export class BlockchainService {
       return fallbackCosts[operation];
     }
   }
+
+  // Get all tokens created by a user
+  static async getUserCreatedTokens(userAddress: string): Promise<Array<{
+    address: string;
+    name: string;
+    symbol: string;
+    totalSupply: string;
+    decimals: number;
+  }>> {
+    try {
+      console.log('Fetching tokens for user:', userAddress);
+      
+      const provider = this.getProvider();
+      const addresses = this.getContractAddresses();
+
+      if (!addresses.tokenFactory) {
+        throw new Error('Token factory contract address not configured');
+      }
+
+      const contract = new ethers.Contract(addresses.tokenFactory, OPTIMIZED_TOKEN_FACTORY_ABI, provider);
+
+      // Get all token addresses created by the user
+      const tokenAddresses = await contract.getCreatedTokens(userAddress);
+      console.log('Found token addresses:', tokenAddresses);
+
+      if (!tokenAddresses || tokenAddresses.length === 0) {
+        console.log('No tokens found for user');
+        return [];
+      }
+
+      // Fetch details for each token
+      const tokenDetailsPromises = tokenAddresses.map(async (tokenAddress: string) => {
+        try {
+          const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, provider);
+          
+          const [name, symbol, decimals, totalSupply] = await Promise.all([
+            tokenContract.name(),
+            tokenContract.symbol(),
+            tokenContract.decimals(),
+            tokenContract.balanceOf(userAddress) // Get user's balance instead of total supply
+          ]);
+
+          return {
+            address: tokenAddress,
+            name,
+            symbol,
+            totalSupply: ethers.formatUnits(totalSupply, decimals),
+            decimals: Number(decimals)
+          };
+        } catch (error) {
+          console.error(`Failed to fetch details for token ${tokenAddress}:`, error);
+          return null;
+        }
+      });
+
+      const tokens = await Promise.all(tokenDetailsPromises);
+      const validTokens = tokens.filter((token): token is NonNullable<typeof token> => token !== null);
+      
+      console.log('Successfully fetched token details:', validTokens);
+      return validTokens;
+    } catch (error) {
+      console.error('Failed to fetch user tokens:', error);
+      throw error;
+    }
+  }
 }
