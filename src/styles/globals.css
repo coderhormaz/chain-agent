@@ -54,6 +54,11 @@
   --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
   --shadow-glow: 0 0 20px rgba(102, 126, 234, 0.3);
   
+  /* Additional Theme Variables */
+  --background: var(--dark-bg);
+  --dark-input: #1a1a1a;
+  --primary-color: #667eea;
+  
   /* Transitions */
   --transition-fast: 150ms ease-in-out;
   --transition-normal: 300ms ease-in-out;
@@ -65,12 +70,16 @@
   --dark-bg: #ffffff;
   --dark-card: #f8fafc;
   --dark-border: #e2e8f0;
-  --glass-bg: rgba(255, 255, 255, 0.8);
+  --dark-input: #f1f5f9;
+  --glass-bg: rgba(248, 250, 252, 0.8);
   --glass-border: rgba(0, 0, 0, 0.1);
   
   --text-primary: #1a202c;
   --text-secondary: #4a5568;
   --text-muted: #718096;
+  
+  --background: #ffffff;
+  --primary-color: #667eea;
   
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);

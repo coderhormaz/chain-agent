@@ -10,6 +10,7 @@ const Wallet: React.FC = () => {
   const [sendAmount, setSendAmount] = useState('');
   const [recipientAddress, setRecipientAddress] = useState('');
   const [showSendModal, setShowSendModal] = useState(false);
+  const [copiedText, setCopiedText] = useState<string | null>(null);
   const [transactions, setTransactions] = useState<Array<{
     hash: string;
     type: string;
@@ -80,9 +81,30 @@ const Wallet: React.FC = () => {
     return `${address.slice(0, 6)}...${address.slice(-4)}`;
   };
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    // You could add a toast notification here
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedText(text);
+      
+      // Clear the copied state after 2 seconds
+      setTimeout(() => {
+        setCopiedText(null);
+      }, 2000);
+    } catch (err) {
+      console.error('Failed to copy text: ', err);
+      // Fallback for older browsers
+      const textArea = document.createElement('textarea');
+      textArea.value = text;
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textArea);
+      
+      setCopiedText(text);
+      setTimeout(() => {
+        setCopiedText(null);
+      }, 2000);
+    }
   };
 
   const handleSendBNB = async () => {
@@ -186,12 +208,13 @@ const Wallet: React.FC = () => {
             </span>
             {wallet?.address && (
               <motion.button
-                className="copy-btn"
+                className={`copy-btn ${copiedText === wallet.address ? 'copied' : ''}`}
                 onClick={() => copyToClipboard(wallet.address)}
                 whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.9 }}
+                title={copiedText === wallet.address ? "Address Copied!" : "Copy Wallet Address"}
               >
-                📋
+                {copiedText === wallet.address ? '✅' : '📋'}
               </motion.button>
             )}
           </div>
@@ -336,12 +359,12 @@ const Wallet: React.FC = () => {
             <div className="private-key-display">
               <code>{wallet.privateKey}</code>
               <motion.button
-                className="copy-btn"
+                className={`copy-btn ${copiedText === wallet.privateKey ? 'copied' : ''}`}
                 onClick={() => copyToClipboard(wallet.privateKey)}
                 whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.9 }}
               >
-                Copy
+                {copiedText === wallet.privateKey ? '✅ Copied!' : 'Copy'}
               </motion.button>
             </div>
             <button

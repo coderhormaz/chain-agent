@@ -19,6 +19,7 @@ const Tokens: React.FC = () => {
   const [isCreating, setIsCreating] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [copiedAddress, setCopiedAddress] = useState<string | null>(null);
   const { wallet } = useWalletStore();
   const [formData, setFormData] = useState({
     name: '',
@@ -115,8 +116,30 @@ const Tokens: React.FC = () => {
     return `${address.slice(0, 6)}...${address.slice(-4)}`;
   };
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedAddress(text);
+      
+      // Clear the copied state after 2 seconds
+      setTimeout(() => {
+        setCopiedAddress(null);
+      }, 2000);
+    } catch (err) {
+      console.error('Failed to copy text: ', err);
+      // Fallback for older browsers
+      const textArea = document.createElement('textarea');
+      textArea.value = text;
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textArea);
+      
+      setCopiedAddress(text);
+      setTimeout(() => {
+        setCopiedAddress(null);
+      }, 2000);
+    }
   };
 
   return (
@@ -218,12 +241,13 @@ const Tokens: React.FC = () => {
                   <div className="address-row">
                     <span className="value">{shortenAddress(token.contractAddress)}</span>
                     <motion.button
-                      className="copy-btn"
+                      className={`copy-btn ${copiedAddress === token.contractAddress ? 'copied' : ''}`}
                       onClick={() => copyToClipboard(token.contractAddress)}
                       whileHover={{ scale: 1.1 }}
                       whileTap={{ scale: 0.9 }}
+                      title={copiedAddress === token.contractAddress ? "Contract Copied!" : "Copy Contract Address"}
                     >
-                      📋
+                      {copiedAddress === token.contractAddress ? '✅' : '📋'}
                     </motion.button>
                   </div>
                 </div>
@@ -239,12 +263,12 @@ const Tokens: React.FC = () => {
                   View on Explorer
                 </motion.button>
                 <motion.button
-                  className="action-btn secondary"
+                  className={`action-btn secondary ${copiedAddress === token.contractAddress ? 'copied' : ''}`}
                   onClick={() => copyToClipboard(token.contractAddress)}
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
                 >
-                  Copy Address
+                  {copiedAddress === token.contractAddress ? '✅ Contract Copied!' : 'Copy Address'}
                 </motion.button>
               </div>
             </motion.div>
