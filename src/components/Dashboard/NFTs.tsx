@@ -16,6 +16,7 @@ const NFTs: React.FC = () => {
   const [nfts, setNfts] = useState<NFT[]>([]);
   const [showMintModal, setShowMintModal] = useState(false);
   const [isMinting, setIsMinting] = useState(false);
+  const [copiedAddress, setCopiedAddress] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -107,6 +108,32 @@ const NFTs: React.FC = () => {
     return `${address.slice(0, 6)}...${address.slice(-4)}`;
   };
 
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedAddress(text);
+      
+      // Clear the copied state after 2 seconds
+      setTimeout(() => {
+        setCopiedAddress(null);
+      }, 2000);
+    } catch (err) {
+      console.error('Failed to copy text: ', err);
+      // Fallback for older browsers
+      const textArea = document.createElement('textarea');
+      textArea.value = text;
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textArea);
+      
+      setCopiedAddress(text);
+      setTimeout(() => {
+        setCopiedAddress(null);
+      }, 2000);
+    }
+  };
+
   return (
     <div className="nfts-container">
       <div className="nfts-header">
@@ -160,7 +187,18 @@ const NFTs: React.FC = () => {
                   </div>
                   <div className="nft-detail">
                     <span className="label">Contract:</span>
-                    <span className="value">{shortenAddress(nft.contractAddress)}</span>
+                    <div className="address-row">
+                      <span className="value">{shortenAddress(nft.contractAddress)}</span>
+                      <motion.button
+                        className={`copy-btn ${copiedAddress === nft.contractAddress ? 'copied' : ''}`}
+                        onClick={() => copyToClipboard(nft.contractAddress)}
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.9 }}
+                        title={copiedAddress === nft.contractAddress ? "Contract Copied!" : "Copy Contract Address"}
+                      >
+                        {copiedAddress === nft.contractAddress ? '✅' : '📋'}
+                      </motion.button>
+                    </div>
                   </div>
                   <div className="nft-detail">
                     <span className="label">Created:</span>
@@ -192,12 +230,12 @@ const NFTs: React.FC = () => {
                     View on Explorer
                   </motion.button>
                   <motion.button
-                    className="action-btn secondary"
-                    onClick={() => {/* Open metadata view */}}
+                    className={`action-btn secondary ${copiedAddress === nft.contractAddress ? 'copied' : ''}`}
+                    onClick={() => copyToClipboard(nft.contractAddress)}
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                   >
-                    View Metadata
+                    {copiedAddress === nft.contractAddress ? '✅ Contract Copied!' : 'Copy Contract'}
                   </motion.button>
                 </div>
               </div>
