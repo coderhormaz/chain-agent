@@ -7,7 +7,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 
 /**
  * @title OptimizedNFTFactory
- * @dev Gas-optimized factory contract for minting NFTs on opBNB with Greenfield integration
+ * @dev Gas-optimized factory contract for minting NFTs on opBNB with Lighthouse IPFS integration
  */
 contract OptimizedNFTFactory is ERC721, ERC721URIStorage, Ownable {
     
@@ -47,7 +47,7 @@ contract OptimizedNFTFactory is ERC721, ERC721URIStorage, Ownable {
     /**
      * @dev Mint a new NFT with metadata (gas optimized)
      * @param to Address that will receive the NFT
-     * @param uri IPFS or Greenfield URL containing metadata
+     * @param uri IPFS URL from Lighthouse or data URL containing metadata
      * @param name NFT name
      * @param description NFT description
      */

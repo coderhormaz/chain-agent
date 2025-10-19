@@ -84,7 +84,7 @@ You are an opBNB AI Assistant specialized in blockchain operations. Your role is
 SUPPORTED ACTIONS:
 - create_token: Create BEP-20 tokens (AI will auto-fill intelligent defaults based on user request)
 - mint_nft: Mint NFTs (requires: name, description, optional: attributes). For image, always use upload_nft first.
-- upload_nft: Show upload button for NFT image upload to BNB Greenfield (no additional details required)
+- upload_nft: Show upload button for NFT image upload to Lighthouse IPFS (no additional details required)
 - send_transaction: Send BNB or tokens (requires: recipient, amount, token type)
 - check_balance: Check wallet balance
 - get_transactions: Get transaction history
@@ -293,10 +293,10 @@ This will deploy a new smart contract on opBNB. The contract will be automatical
       case 'upload_nft':
         return `📤 **NFT Upload Ready**
 
-I'll help you upload your image to BNB Greenfield and mint it as an NFT!
+I'll help you upload your image to Lighthouse IPFS and mint it as an NFT!
 
 **Here's what will happen:**
-1. You'll upload your image to BNB Greenfield (decentralized storage)
+1. You'll upload your image to Lighthouse IPFS (decentralized storage)
 2. I'll ask for NFT name and description
 3. We'll mint the NFT on opBNB with your image
 

@@ -95,7 +95,75 @@ VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 VITE_ENCRYPTION_KEY=opbnb-ai-assistant-encryption-key-2025
 ```
 
-## 📦 Installation & Usage
+## �️ Lighthouse IPFS Storage Setup (For NFT Images)
+
+### Why Lighthouse?
+- ✅ **Simple** - Just need an API key, no complex setup
+- ✅ **Free Tier** - Generous free storage for small projects
+- ✅ **IPFS** - Decentralized storage on IPFS network
+- ✅ **Auto Fallback** - Works without API key using embedded images
+
+### Getting Your FREE Lighthouse API Key
+
+1. **Visit Lighthouse Website**
+   ```
+   https://files.lighthouse.storage/
+   ```
+
+2. **Sign Up / Login**
+   - Click "Sign In" button
+   - Connect your wallet (MetaMask, WalletConnect, etc.)
+   - Complete the authentication
+
+3. **Get Your API Key**
+   - After logging in, go to your dashboard
+   - Navigate to **"API Key"** section in the sidebar
+   - Click **"Create New API Key"** button
+   - Copy your API key (format: `xxxxxxxx.xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx`)
+
+4. **Add to Your Project**
+   - Open `.env` file in your project root
+   - Find the line: `VITE_LIGHTHOUSE_API_KEY=your_lighthouse_api_key_here`
+   - Replace with your actual key: `VITE_LIGHTHOUSE_API_KEY=your_actual_key_here`
+   - Save the file and restart your dev server
+
+### How It Works
+
+**With Lighthouse API Key:**
+```
+✅ Images uploaded to IPFS
+✅ Publicly accessible via: https://gateway.lighthouse.storage/ipfs/{hash}
+✅ NFT metadata references IPFS URLs
+✅ True decentralized storage
+```
+
+**Without API Key (Automatic Fallback):**
+```
+✅ Images converted to data URLs (base64)
+✅ Embedded directly in NFT metadata
+✅ NFTs still work perfectly
+✅ No external dependencies
+⚠️ Larger metadata size
+```
+
+### Troubleshooting
+
+**Q: I see "Trial expired" error**
+A: The trial API key has expired. Get a free API key from https://files.lighthouse.storage/
+
+**Q: Images aren't uploading to IPFS**
+A: Check that your `VITE_LIGHTHOUSE_API_KEY` is set correctly in `.env` file
+
+**Q: Do I need an API key for NFTs to work?**
+A: No! NFTs work without it using embedded images. The API key is only needed for IPFS storage.
+
+**Q: How much does Lighthouse cost?**
+A: Lighthouse has a generous free tier. Check https://lighthouse.storage/ for current pricing.
+
+### More Information
+See `LIGHTHOUSE_SETUP.md` for detailed documentation.
+
+## �📦 Installation & Usage
 
 1. **Install dependencies** (Already done!)
 ```bash

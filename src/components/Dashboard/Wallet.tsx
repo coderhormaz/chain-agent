@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { useWalletStore } from '../../store/walletStore';
 import { ethers } from 'ethers';
+import { TransactionService, type Transaction } from '../../services/transactionService';
 
 const Wallet: React.FC = () => {
   const { wallet, balance, balanceUSD, bnbPrice, isLoadingPrice, setBalance, updateBNBPrice } = useWalletStore();
@@ -11,15 +12,8 @@ const Wallet: React.FC = () => {
   const [recipientAddress, setRecipientAddress] = useState('');
   const [showSendModal, setShowSendModal] = useState(false);
   const [copiedText, setCopiedText] = useState<string | null>(null);
-  const [transactions, setTransactions] = useState<Array<{
-    hash: string;
-    type: string;
-    amount: string;
-    from?: string;
-    to?: string;
-    timestamp: Date;
-    status: string;
-  }>>([]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [isLoadingTransactions, setIsLoadingTransactions] = useState(false);
 
   const fetchBalance = useCallback(async () => {
     if (!wallet?.address) return;
@@ -41,27 +35,22 @@ const Wallet: React.FC = () => {
   }, [wallet?.address, setBalance]);
 
   const fetchTransactions = useCallback(async () => {
-    // Mock transaction data for now
-    const mockTransactions = [
-      {
-        hash: '0x1234...5678',
-        type: 'Received',
-        amount: '+0.1 BNB',
-        from: '0xabcd...efgh',
-        timestamp: new Date(Date.now() - 3600000),
-        status: 'Success'
-      },
-      {
-        hash: '0x9876...5432',
-        type: 'Sent',
-        amount: '-0.05 BNB',
-        to: '0xijkl...mnop',
-        timestamp: new Date(Date.now() - 7200000),
-        status: 'Success'
-      }
-    ];
-    setTransactions(mockTransactions);
-  }, []);
+    if (!wallet?.address) return;
+    
+    try {
+      setIsLoadingTransactions(true);
+      console.log('Fetching transactions for wallet:', wallet.address);
+      const txs = await TransactionService.fetchTransactions(wallet.address);
+      console.log('Transactions fetched:', txs.length);
+      setTransactions(txs);
+    } catch (error) {
+      console.error('Error fetching transactions:', error);
+      // Set empty array on error - don't show error to user
+      setTransactions([]);
+    } finally {
+      setIsLoadingTransactions(false);
+    }
+  }, [wallet?.address]);
 
   useEffect(() => {
     if (wallet?.address) {
@@ -254,29 +243,54 @@ const Wallet: React.FC = () => {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, delay: 0.2 }}
       >
-        <h3>Recent Transactions</h3>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h3>Recent Transactions</h3>
+          <motion.button
+            className="refresh-btn"
+            onClick={fetchTransactions}
+            disabled={isLoadingTransactions}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            style={{ fontSize: '0.9rem', padding: '0.5rem 1rem' }}
+          >
+            {isLoadingTransactions ? '⟳' : '↻'} Refresh
+          </motion.button>
+        </div>
         <div className="transactions-list">
-          {transactions.length === 0 ? (
+          {isLoadingTransactions ? (
+            <div className="loading-transactions">
+              <div className="loading">Loading transactions...</div>
+            </div>
+          ) : transactions.length === 0 ? (
             <div className="no-transactions">
               <p>No transactions found</p>
+              <p style={{ fontSize: '0.9rem', opacity: 0.7, marginTop: '0.5rem' }}>
+                Transactions will appear here once you send or receive BNB
+              </p>
             </div>
           ) : (
             transactions.map((tx, index) => (
               <motion.div
-                key={index}
+                key={tx.hash}
                 className="transaction-item"
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.3, delay: index * 0.1 }}
+                transition={{ duration: 0.3, delay: index * 0.05 }}
+                onClick={() => window.open(TransactionService.getExplorerUrl(tx.hash), '_blank')}
+                style={{ cursor: 'pointer' }}
               >
                 <div className="tx-info">
                   <div className="tx-type">{tx.type}</div>
                   <div className="tx-amount">{tx.amount}</div>
                 </div>
                 <div className="tx-details">
+                  <div className="tx-hash" title={tx.hash}>
+                    {TransactionService.shortenHash(tx.hash)}
+                  </div>
                   <div className="tx-address">
-                    {tx.from && `From: ${shortenAddress(tx.from)}`}
-                    {tx.to && `To: ${shortenAddress(tx.to)}`}
+                    {tx.from && tx.type === 'Received' && `From: ${shortenAddress(tx.from)}`}
+                    {tx.to && tx.type === 'Sent' && `To: ${shortenAddress(tx.to)}`}
+                    {tx.type === 'Contract Interaction' && `Contract: ${tx.to ? shortenAddress(tx.to) : 'N/A'}`}
                   </div>
                   <div className="tx-time">
                     {tx.timestamp.toLocaleDateString()} {tx.timestamp.toLocaleTimeString()}

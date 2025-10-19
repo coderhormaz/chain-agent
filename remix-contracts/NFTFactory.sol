@@ -8,7 +8,7 @@ import "@openzeppelin/contracts/utils/Counters.sol";
 
 /**
  * @title NFTFactory
- * @dev Factory contract for minting NFTs on opBNB with Greenfield integration
+ * @dev Factory contract for minting NFTs on opBNB with Lighthouse IPFS integration
  */
 contract NFTFactory is ERC721, ERC721URIStorage, Ownable {
     using Counters for Counters.Counter;
@@ -51,7 +51,7 @@ contract NFTFactory is ERC721, ERC721URIStorage, Ownable {
     /**
      * @dev Mint a new NFT with metadata
      * @param to Address that will receive the NFT
-     * @param tokenURI IPFS or Greenfield URL containing metadata
+     * @param tokenURI IPFS URL from Lighthouse or data URL containing metadata
      * @param name NFT name
      * @param description NFT description
      */

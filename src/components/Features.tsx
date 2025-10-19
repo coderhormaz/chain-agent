@@ -57,8 +57,8 @@ export const Features: React.FC = () => {
     },
     {
       icon: '☁️',
-      title: 'Greenfield Storage',
-      description: 'Decentralized storage solutions integrated with BNB Greenfield for your digital assets.'
+      title: 'IPFS Storage',
+      description: 'Decentralized storage solutions integrated with Lighthouse IPFS for your digital assets.'
     }
   ];
 
