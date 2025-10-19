@@ -41,7 +41,7 @@ export const useConversationStore = create<ConversationState>()(
         {
           id: 'welcome',
           type: 'ai',
-          content: 'Hello! I\'m your opBNB AI Assistant powered by Gemini. I can help you:\n\n🪙 Create BEP-20 tokens\n🖼️ Mint NFTs with BNB Greenfield storage\n💸 Send BNB transactions\n📊 Check balances and transaction history\n\nJust tell me what you\'d like to do in natural language!',
+          content: 'Hello! I\'m your opBNB AI Assistant powered by Gemini. I can help you:\n\n🪙 Create BEP-20 tokens\n🖼️ Mint NFTs with Lighthouse IPFS storage\n💸 Send BNB transactions\n📊 Check balances and transaction history\n\nJust tell me what you\'d like to do in natural language!',
           timestamp: new Date()
         }
       ],
@@ -81,7 +81,7 @@ export const useConversationStore = create<ConversationState>()(
             {
               id: 'welcome',
               type: 'ai',
-              content: 'Hello! I\'m your opBNB AI Assistant powered by Gemini. I can help you:\n\n🪙 Create BEP-20 tokens\n🖼️ Mint NFTs with BNB Greenfield storage\n💸 Send BNB transactions\n📊 Check balances and transaction history\n\nJust tell me what you\'d like to do in natural language!',
+              content: 'Hello! I\'m your opBNB AI Assistant powered by Gemini. I can help you:\n\n🪙 Create BEP-20 tokens\n🖼️ Mint NFTs with Lighthouse IPFS storage\n💸 Send BNB transactions\n📊 Check balances and transaction history\n\nJust tell me what you\'d like to do in natural language!',
               timestamp: new Date()
             }
           ],

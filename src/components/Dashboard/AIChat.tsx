@@ -199,7 +199,7 @@ No problem! The action has been cancelled. Is there something else I can help yo
         
         addMessage({
           type: 'ai',
-          content: `🎉 **Image uploaded successfully to BNB Greenfield!**
+          content: `🎉 **Image uploaded successfully to Lighthouse IPFS!**
 
 Your image "${fileName}" has been stored on the decentralized network.
 
@@ -221,7 +221,7 @@ ${confirmationMessage}`,
           type: 'ai',
           content: `🎉 **Image uploaded successfully!** 
 
-Your image "${fileName}" has been stored on BNB Greenfield. There was an error generating the confirmation. Please try again.`,
+Your image "${fileName}" has been stored on Lighthouse IPFS. There was an error generating the confirmation. Please try again.`,
           uploadedImage: { url, fileName }
         });
       }
@@ -231,7 +231,7 @@ Your image "${fileName}" has been stored on BNB Greenfield. There was an error g
       
       addMessage({
         type: 'ai',
-        content: `🎉 **Image uploaded successfully to BNB Greenfield!**
+        content: `🎉 **Image uploaded successfully to Lighthouse IPFS!**
 
 Your image has been stored on the decentralized network. Now I need a few more details to mint your NFT:
 

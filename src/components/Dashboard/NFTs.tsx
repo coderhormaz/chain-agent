@@ -1,5 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
+import { useWalletStore } from '../../store/walletStore';
+import { WalletService } from '../../lib/wallet';
+import { BlockchainService } from '../../services/blockchainService';
+import { LighthouseService } from '../../services/lighthouseService';
 
 interface NFT {
   id: string;
@@ -13,9 +17,13 @@ interface NFT {
 }
 
 const NFTs: React.FC = () => {
+  const { wallet } = useWalletStore();
   const [nfts, setNfts] = useState<NFT[]>([]);
   const [showMintModal, setShowMintModal] = useState(false);
   const [isMinting, setIsMinting] = useState(false);
+  const [mintingStage, setMintingStage] = useState<'idle' | 'uploading' | 'minting' | 'success' | 'error'>('idle');
+  const [mintingProgress, setMintingProgress] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
   const [copiedAddress, setCopiedAddress] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: '',
@@ -25,41 +33,51 @@ const NFTs: React.FC = () => {
   const [imagePreview, setImagePreview] = useState<string>('');
 
   useEffect(() => {
-    // Mock NFTs for demonstration
-    const mockNFTs: NFT[] = [
-      {
-        id: '1',
-        name: 'My First NFT',
-        description: 'This is my very first NFT created on opBNB',
-        image: 'https://via.placeholder.com/300x300?text=NFT+1',
-        contractAddress: '0x1234567890123456789012345678901234567890',
-        tokenId: '1',
-        metadata: {
-          attributes: [
-            { trait_type: 'Rarity', value: 'Rare' },
-            { trait_type: 'Color', value: 'Blue' }
-          ]
-        },
-        createdAt: new Date(Date.now() - 86400000)
-      },
-      {
-        id: '2',
-        name: 'Digital Art Piece',
-        description: 'A beautiful digital artwork stored on BNB Greenfield',
-        image: 'https://via.placeholder.com/300x300?text=NFT+2',
-        contractAddress: '0x0987654321098765432109876543210987654321',
-        tokenId: '2',
-        metadata: {
-          attributes: [
-            { trait_type: 'Style', value: 'Abstract' },
-            { trait_type: 'Artist', value: 'AI Generated' }
-          ]
-        },
-        createdAt: new Date(Date.now() - 172800000)
+    // Fetch user's NFTs from the blockchain
+    const fetchNFTs = async () => {
+      if (!wallet?.address) {
+        console.log('No wallet connected, skipping NFT fetch');
+        return;
       }
-    ];
-    setNfts(mockNFTs);
-  }, []);
+
+      try {
+        console.log('Fetching NFTs for address:', wallet.address);
+        const userNFTs = await BlockchainService.getUserNFTs(wallet.address);
+        
+        // Convert blockchain NFTs to component NFT format
+        const formattedNFTs: NFT[] = userNFTs.map(nft => {
+          console.log('📦 Processing NFT:', {
+            tokenId: nft.tokenId,
+            name: nft.metadata?.name,
+            imageURL: nft.metadata?.image,
+            tokenURI: nft.tokenURI
+          });
+          
+          return {
+            id: nft.tokenId,
+            name: nft.metadata?.name || `NFT #${nft.tokenId}`,
+            description: nft.metadata?.description || 'No description',
+            image: nft.metadata?.image || 'https://via.placeholder.com/300x300?text=NFT',
+            contractAddress: import.meta.env.VITE_NFT_FACTORY_CONTRACT || '0x...',
+            tokenId: nft.tokenId,
+            metadata: {
+              attributes: nft.metadata?.attributes || []
+            },
+            createdAt: new Date() // We don't have exact creation date from chain
+          };
+        });
+
+        console.log(`✅ Fetched ${formattedNFTs.length} NFTs from blockchain`);
+        console.log('NFT Image URLs:', formattedNFTs.map(nft => ({ id: nft.id, image: nft.image })));
+        setNfts(formattedNFTs);
+      } catch (error) {
+        console.error('Failed to fetch NFTs:', error);
+        // Don't show error to user, just log it
+      }
+    };
+
+    fetchNFTs();
+  }, [wallet]);
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -74,34 +92,117 @@ const NFTs: React.FC = () => {
   };
 
   const handleMintNFT = async () => {
-    if (!formData.name || !formData.description || !formData.image) return;
+    if (!formData.name || !formData.description || !formData.image) {
+      setErrorMessage('Please fill in all fields and upload an image');
+      return;
+    }
+
+    // Check if wallet is connected
+    if (!wallet?.address || !wallet?.privateKey) {
+      setErrorMessage('Please connect your wallet first');
+      return;
+    }
 
     setIsMinting(true);
+    setMintingStage('uploading');
+    setErrorMessage('');
     
-    // Simulate NFT minting with Greenfield storage
-    setTimeout(() => {
-      const newNFT: NFT = {
-        id: Date.now().toString(),
+    try {
+      // Decrypt private key
+      const privateKey = WalletService.decryptPrivateKey(wallet.privateKey);
+      
+      // Step 1: Upload image to Lighthouse IPFS
+      setMintingProgress('Uploading image to Lighthouse IPFS...');
+      console.log('🚀 Starting image upload to IPFS...');
+      console.log('📁 File details:', {
+        name: formData.image.name,
+        size: formData.image.size,
+        type: formData.image.type,
+        lastModified: new Date(formData.image.lastModified)
+      });
+      
+      // Upload to Lighthouse (IPFS)
+      const uploadResult = await LighthouseService.uploadImage(formData.image);
+
+      console.log('📤 Upload result received:', uploadResult);
+
+      if (!uploadResult.success || !uploadResult.url) {
+        console.error('❌ Upload failed:', uploadResult.error);
+        throw new Error(uploadResult.error || 'Failed to upload image to IPFS');
+      }
+
+      console.log('✅ Image uploaded successfully!');
+      console.log('🌐 Image URL:', uploadResult.url);
+      console.log('📦 IPFS Hash:', uploadResult.ipfsHash);
+      console.log('📁 File name:', uploadResult.fileName);
+      
+      // Step 2: Prepare NFT metadata
+      setMintingStage('minting');
+      setMintingProgress('Preparing NFT metadata...');
+      
+      const nftDetails = {
         name: formData.name,
         description: formData.description,
-        image: imagePreview || 'https://via.placeholder.com/300x300?text=New+NFT',
-        contractAddress: `0x${Math.random().toString(16).substring(2, 42)}`,
-        tokenId: (nfts.length + 1).toString(),
+        imageUrl: uploadResult.url,
+        attributes: [
+          { trait_type: 'Creator', value: 'opBNB User' },
+          { trait_type: 'Storage', value: 'Lighthouse IPFS' },
+          { trait_type: 'Creation Date', value: new Date().toISOString() }
+        ]
+      };
+
+      // Step 3: Mint NFT on opBNB blockchain
+      setMintingProgress('Minting NFT on opBNB blockchain...');
+      console.log('Starting NFT minting on blockchain...');
+      
+      const mintResult = await BlockchainService.mintNFT(
+        nftDetails,
+        wallet.address,
+        privateKey
+      );
+
+      if (!mintResult.success) {
+        throw new Error(mintResult.error || 'Failed to mint NFT');
+      }
+
+      console.log('NFT minted successfully:', mintResult);
+      
+      // Step 4: Add to local list (until we implement fetching from blockchain)
+      const newNFT: NFT = {
+        id: mintResult.tokenId || Date.now().toString(),
+        name: formData.name,
+        description: formData.description,
+        image: uploadResult.url,
+        contractAddress: import.meta.env.VITE_NFT_FACTORY_CONTRACT || '0x...',
+        tokenId: mintResult.tokenId || '0',
         metadata: {
-          attributes: [
-            { trait_type: 'Creator', value: 'opBNB User' },
-            { trait_type: 'Storage', value: 'BNB Greenfield' }
-          ]
+          attributes: nftDetails.attributes
         },
         createdAt: new Date()
       };
       
       setNfts(prev => [newNFT, ...prev]);
-      setShowMintModal(false);
-      setFormData({ name: '', description: '', image: null });
-      setImagePreview('');
+      
+      // Success!
+      setMintingStage('success');
+      setMintingProgress(`NFT minted successfully! Token ID: ${mintResult.tokenId}`);
+      
+      // Show success message for 2 seconds, then close modal
+      setTimeout(() => {
+        setShowMintModal(false);
+        setFormData({ name: '', description: '', image: null });
+        setImagePreview('');
+        setMintingStage('idle');
+        setMintingProgress('');
+        setIsMinting(false);
+      }, 2000);
+      
+    } catch (error: any) {
+      console.error('NFT minting failed:', error);
+      setMintingStage('error');
+      setErrorMessage(error.message || 'Failed to mint NFT');
       setIsMinting(false);
-    }, 3000);
+    }
   };
 
   const shortenAddress = (address: string) => {
@@ -153,7 +254,7 @@ const NFTs: React.FC = () => {
           <div className="no-nfts">
             <div className="no-nfts-icon">🖼️</div>
             <h3>No NFTs minted yet</h3>
-            <p>Create your first NFT with metadata stored on BNB Greenfield</p>
+            <p>Create your first NFT with images on Lighthouse IPFS</p>
             <motion.button
               className="mint-first-nft-btn"
               onClick={() => setShowMintModal(true)}
@@ -173,7 +274,20 @@ const NFTs: React.FC = () => {
               transition={{ duration: 0.3, delay: index * 0.1 }}
             >
               <div className="nft-image">
-                <img src={nft.image} alt={nft.name} />
+                <img 
+                  src={nft.image} 
+                  alt={nft.name}
+                  onError={(e) => {
+                    console.error('Failed to load NFT image:', nft.image);
+                    // Try to display a placeholder or log the issue
+                    e.currentTarget.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iIzMzMyIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTQiIGZpbGw9IiM5OTkiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj5JbWFnZSBub3QgbG9hZGVkPC90ZXh0Pjwvc3ZnPg==';
+                    e.currentTarget.onerror = null; // Prevent infinite loop
+                  }}
+                  onLoad={() => {
+                    console.log('✅ NFT image loaded successfully:', nft.image);
+                  }}
+                  crossOrigin="anonymous"
+                />
               </div>
               
               <div className="nft-content">
@@ -300,15 +414,57 @@ const NFTs: React.FC = () => {
               </div>
               
               <div className="minting-info">
-                <p>🌱 Metadata will be stored on BNB Greenfield</p>
+                <p>🌱 Images stored on Lighthouse IPFS</p>
                 <p>💰 Estimated gas fee: ~0.002 BNB</p>
                 <p>⏱️ Processing time: 1-3 minutes</p>
               </div>
 
+              {/* Progress indicator */}
+              {isMinting && (
+                <div className="minting-progress">
+                  {mintingStage === 'uploading' && (
+                    <div className="progress-step">
+                      <div className="progress-spinner"></div>
+                      <p>📤 {mintingProgress}</p>
+                    </div>
+                  )}
+                  {mintingStage === 'minting' && (
+                    <div className="progress-step">
+                      <div className="progress-spinner"></div>
+                      <p>⚡ {mintingProgress}</p>
+                    </div>
+                  )}
+                  {mintingStage === 'success' && (
+                    <div className="progress-step success">
+                      <p>✅ {mintingProgress}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Error message */}
+              {errorMessage && (
+                <div className="error-message">
+                  <p>❌ {errorMessage}</p>
+                </div>
+              )}
+
+              {/* Warning if wallet not connected */}
+              {!wallet && (
+                <div className="warning-message">
+                  <p>⚠️ Please connect your wallet first</p>
+                </div>
+              )}
+
               <div className="modal-actions">
                 <button
                   className="modal-btn secondary"
-                  onClick={() => setShowMintModal(false)}
+                  onClick={() => {
+                    setShowMintModal(false);
+                    setErrorMessage('');
+                    setMintingStage('idle');
+                    setMintingProgress('');
+                  }}
                   disabled={isMinting}
                 >
                   Cancel
@@ -316,9 +472,13 @@ const NFTs: React.FC = () => {
                 <button
                   className="modal-btn primary"
                   onClick={handleMintNFT}
-                  disabled={!formData.name || !formData.description || !formData.image || isMinting}
+                  disabled={!formData.name || !formData.description || !formData.image || isMinting || !wallet}
                 >
-                  {isMinting ? 'Minting NFT...' : 'Mint NFT'}
+                  {isMinting ? (
+                    mintingStage === 'uploading' ? 'Uploading...' :
+                    mintingStage === 'minting' ? 'Minting...' :
+                    'Processing...'
+                  ) : 'Mint NFT'}
                 </button>
               </div>
             </div>

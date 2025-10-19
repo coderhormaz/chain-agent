@@ -9,13 +9,17 @@ const OPTIMIZED_TOKEN_FACTORY_ABI = [
   "function getTotalTokensCount() external view returns (uint256)"
 ];
 
-const OPTIMIZED_NFT_FACTORY_ABI = [
-  "function mintNFT(address to, string memory uri, string memory name, string memory description) external payable returns (uint256)",
-  "function batchMintNFT(address[] memory recipients, string[] memory uris, string[] memory names, string[] memory descriptions) external payable returns (uint256[])",
-  "function getNFTInfo(uint256 tokenId) external view returns (tuple(address creator, uint96 timestamp, string name, string description, string tokenURI))",
-  "function getTotalNFTs() external view returns (uint256)",
-  "function owner() external view returns (address)",
-  "function paused() external view returns (bool)"
+// Simple NFT Collection ABI - Shared collection where anyone can mint
+const SIMPLE_NFT_COLLECTION_ABI = [
+  "function mint(string calldata uri) external returns (uint256)",
+  "function mintTo(address to, string calldata uri) external returns (uint256)",
+  "function batchMint(string[] calldata uris) external returns (uint256[])",
+  "function getTokensByCreator(address creator) external view returns (uint256[])",
+  "function totalSupply() external view returns (uint256)",
+  "function getCreator(uint256 tokenId) external view returns (address)",
+  "function exists(uint256 tokenId) external view returns (bool)",
+  "function ownerOf(uint256 tokenId) external view returns (address)",
+  "function tokenURI(uint256 tokenId) external view returns (string memory)"
 ];
 
 const ERC20_ABI = [
@@ -129,12 +133,12 @@ export class BlockchainService {
         throw new Error(`No contract found at address ${addresses.nftFactory}. Contract may not be deployed.`);
       }
 
-      const contract = new ethers.Contract(addresses.nftFactory, OPTIMIZED_NFT_FACTORY_ABI, wallet);
+      const contract = new ethers.Contract(addresses.nftFactory, SIMPLE_NFT_COLLECTION_ABI, wallet);
 
       // Try to call a view function to verify the contract interface
       try {
-        console.log('Verifying contract interface by calling getTotalNFTs...');
-        const totalNFTs = await contract.getTotalNFTs();
+        console.log('Verifying contract interface by calling totalSupply...');
+        const totalNFTs = await contract.totalSupply();
         console.log('Contract verification successful. Total NFTs:', totalNFTs.toString());
         
         // Additional contract diagnostics
@@ -147,16 +151,6 @@ export class BlockchainService {
           console.log('Could not get contract owner (function may not exist)');
         }
         
-        try {
-          const paused = await contract.paused();
-          console.log('Contract paused status:', paused);
-          if (paused) {
-            throw new Error('Contract is currently paused and cannot mint NFTs.');
-          }
-        } catch {
-          console.log('Could not get paused status (function may not exist)');
-        }
-        
       } catch (interfaceError) {
         console.error('Contract interface verification failed:', interfaceError);
         throw new Error(`Contract at ${addresses.nftFactory} exists but doesn't have the expected interface. The contract may not be an NFT factory or may have a different ABI.`);
@@ -166,245 +160,109 @@ export class BlockchainService {
       const balance = await provider.getBalance(wallet.address);
       console.log('Wallet balance:', ethers.formatEther(balance), 'BNB');
       
-      // Check if we have enough for gas + potential payment
-      const minRequiredForGas = ethers.parseEther('0.00001');
-      const potentialPayment = ethers.parseEther('0.01');
-      const minRequiredTotal = minRequiredForGas + potentialPayment;
+      // Check if we have enough for gas
+      const minRequiredForGas = ethers.parseEther('0.0001'); // ~$0.09 at $900/BNB
       
       if (balance < minRequiredForGas) {
-        throw new Error('Insufficient BNB balance for gas fees. Need at least 0.00001 BNB (~$0.009).');
-      }
-      
-      if (balance < minRequiredTotal) {
-        console.warn(`⚠️ Wallet balance (${ethers.formatEther(balance)} BNB) may not be enough for payment + gas. Will try without payment first.`);
+        throw new Error(`Insufficient BNB balance for gas fees. You have ${ethers.formatEther(balance)} BNB, need at least 0.0001 BNB (~$0.09).`);
       }
 
       // Create metadata JSON
       const metadata = {
         name: nftDetails.name,
         description: nftDetails.description,
-        image: nftDetails.imageUrl, // This will be the Greenfield URL
+        image: nftDetails.imageUrl, // Lighthouse IPFS URL or data URL
         attributes: nftDetails.attributes || [],
-        external_url: nftDetails.imageUrl,
-        animation_url: null,
-        background_color: "000000"
+        external_url: nftDetails.imageUrl
       };
 
-      // For production, upload metadata to IPFS or Greenfield as well
-      // For now, we'll use a data URI
+      // Create token URI with base64 encoded metadata
       const tokenURI = `data:application/json;base64,${btoa(JSON.stringify(metadata))}`;
       
-      console.log('Token URI length:', tokenURI.length);
-      console.log('Token URI first 200 chars:', tokenURI.substring(0, 200));
-      console.log('Token URI type:', typeof tokenURI);
-      console.log('Recipient address:', recipientAddress);
-      console.log('Recipient address type:', typeof recipientAddress);
-      console.log('NFT name:', JSON.stringify(nftDetails.name));
-      console.log('NFT description:', JSON.stringify(nftDetails.description));
+      console.log('📝 NFT Metadata:', {
+        name: nftDetails.name,
+        description: nftDetails.description,
+        imageUrl: nftDetails.imageUrl,
+        tokenURILength: tokenURI.length
+      });
 
-      // Validate parameters before attempting contract call
-      if (!recipientAddress || typeof recipientAddress !== 'string') {
-        throw new Error('Invalid recipient address: must be a non-empty string');
-      }
-      
-      if (!ethers.isAddress(recipientAddress)) {
-        throw new Error(`Invalid recipient address format: ${recipientAddress}. Must be a valid Ethereum address.`);
-      }
-      
+      // Validate metadata
       if (!nftDetails.name || nftDetails.name.trim() === '') {
         throw new Error('NFT name cannot be empty');
       }
       
-      if (!nftDetails.description || nftDetails.description.trim() === '') {
-        throw new Error('NFT description cannot be empty');
-      }
-      
-      if (!tokenURI || tokenURI.length === 0) {
-        throw new Error('Token URI cannot be empty');
+      // Accept both data URLs (for embedded images) and HTTP URLs (for Lighthouse IPFS)
+      if (!nftDetails.imageUrl || 
+          (!nftDetails.imageUrl.startsWith('http') && !nftDetails.imageUrl.startsWith('data:'))) {
+        throw new Error('Invalid image URL. Must be a valid HTTP(S) URL from Lighthouse IPFS or a data URL.');
       }
 
-      console.log('✅ All parameters validated successfully');
-      console.log('Wallet address attempting mint:', wallet.address);
-      console.log('Calling mintNFT with params:', {
-        to: recipientAddress,
-        uri: tokenURI.substring(0, 100) + '...', // Truncated for logging
-        name: nftDetails.name,
-        description: nftDetails.description
-      });
+      console.log('✅ Metadata validated');
+      console.log('🎨 Minting to shared NFT collection...');
+      console.log('Minter address:', wallet.address);
+      console.log('Collection contract:', addresses.nftFactory);
 
-      // Check if recipient and wallet address are the same
-      if (recipientAddress.toLowerCase() !== wallet.address.toLowerCase()) {
-        console.warn('⚠️  Recipient address differs from wallet address');
-        console.log('Wallet:', wallet.address);
-        console.log('Recipient:', recipientAddress);
-      }
-
-      // Estimate gas first with smart payment detection
+      // Estimate gas for the simple mint function
       let gasEstimate: bigint;
-      let requiresPayment = false;
-      let paymentAmount = ethers.parseEther('0.01');
       
       try {
-        console.log('Attempting gas estimation...');
+        console.log('⛽ Estimating gas...');
         
-        // First, let's try a test call with minimal data to see what happens
-        try {
-          console.log('🔬 Testing contract call with minimal parameters...');
-          const testResult = await contract.mintNFT.staticCall(
-            recipientAddress,
-            "test",
-            "test",
-            "test"
-          );
-          console.log('✅ Static call successful, would return tokenId:', testResult.toString());
-        } catch (staticError) {
-          console.log('❌ Static call failed:', staticError);
-          
-          // If static call fails, the function might require payment
-          try {
-            console.log('🔬 Testing static call with payment...');
-            const testResultWithPayment = await contract.mintNFT.staticCall(
-              recipientAddress,
-              "test", 
-              "test",
-              "test",
-              { value: ethers.parseEther('0.001') }
-            );
-            console.log('✅ Static call with payment successful, would return tokenId:', testResultWithPayment.toString());
-            console.log('💡 Contract requires payment for minting');
-          } catch (staticPaymentError) {
-            console.log('❌ Static call with payment also failed:', staticPaymentError);
-          }
-        }
+        // Use mint() if minting to self, or mintTo() if gifting to someone else
+        const mintingToSelf = recipientAddress.toLowerCase() === wallet.address.toLowerCase();
         
-        // Try gas estimation without payment first
-        try {
-          gasEstimate = await contract.mintNFT.estimateGas(
-            recipientAddress,
-            tokenURI,
-            nftDetails.name,
-            nftDetails.description
-          );
-          console.log('✅ Gas estimation successful without payment:', gasEstimate.toString());
-        } catch (noPaymentError) {
-          console.log('❌ Gas estimation failed without payment, checking if we have enough for payment...');
-          
-          // Check if we have enough balance for payment + gas
-          if (balance >= paymentAmount + ethers.parseEther('0.0001')) {
-            console.log('💰 Trying with payment since we have enough balance...');
-            
-            // Try with payment (0.01 BNB)
-            gasEstimate = await contract.mintNFT.estimateGas(
-              recipientAddress,
-              tokenURI,
-              nftDetails.name,
-              nftDetails.description,
-              { value: paymentAmount }
-            );
-            
-            requiresPayment = true;
-            console.log('✅ Gas estimation successful with payment of 0.01 BNB:', gasEstimate.toString());
-          } else {
-            console.log('💸 Insufficient balance for payment, trying smaller amounts...');
-            
-            // Try with smaller payments
-            const smallerPayments = [
-              ethers.parseEther('0.001'), // 0.001 BNB
-              ethers.parseEther('0.0001'), // 0.0001 BNB
-              ethers.parseEther('0.00001') // 0.00001 BNB
-            ];
-            
-            let paymentFound = false;
-            for (const smallPayment of smallerPayments) {
-              if (balance >= smallPayment + ethers.parseEther('0.0001')) {
-                try {
-                  gasEstimate = await contract.mintNFT.estimateGas(
-                    recipientAddress,
-                    tokenURI,
-                    nftDetails.name,
-                    nftDetails.description,
-                    { value: smallPayment }
-                  );
-                  
-                  requiresPayment = true;
-                  paymentAmount = smallPayment;
-                  console.log(`✅ Gas estimation successful with payment of ${ethers.formatEther(smallPayment)} BNB:`, gasEstimate.toString());
-                  paymentFound = true;
-                  break;
-                } catch {
-                  console.log(`❌ Payment of ${ethers.formatEther(smallPayment)} BNB failed`);
-                }
-              }
-            }
-            
-            if (!paymentFound) {
-              throw noPaymentError; // Re-throw original error
-            }
-          }
+        if (mintingToSelf) {
+          gasEstimate = await contract.mint.estimateGas(tokenURI);
+          console.log('✅ Gas estimate for mint():', gasEstimate.toString());
+        } else {
+          gasEstimate = await contract.mintTo.estimateGas(recipientAddress, tokenURI);
+          console.log('✅ Gas estimate for mintTo():', gasEstimate.toString());
+          console.log('🎁 Gifting NFT to:', recipientAddress);
         }
       } catch (gasError) {
-        console.error('Gas estimation failed:', gasError);
-        
-        // Type-safe error handling
-        const errorInfo = gasError as { code?: string; reason?: string; data?: unknown; error?: unknown };
-        console.error('Gas error details:', {
-          message: gasError instanceof Error ? gasError.message : 'Unknown error',
-          code: errorInfo.code,
-          reason: errorInfo.reason,
-          data: errorInfo.data,
-          error: errorInfo.error,
-          stack: gasError instanceof Error ? gasError.stack : undefined,
-          fullError: JSON.stringify(gasError, null, 2)
-        });
-        
-        // More specific error checking
-        const isCallException = errorInfo.code === 'CALL_EXCEPTION' || 
-                               errorInfo.reason === 'missing revert data' ||
-                               (gasError instanceof Error && gasError.message.includes('missing revert data'));
-        
-        if (isCallException) {
-          // Let's try to call a simple view function to test the contract
-          console.log('Testing contract with simple view function...');
-          try {
-            const totalNFTs = await contract.getTotalNFTs();
-            console.log('Contract test successful, total NFTs:', totalNFTs.toString());
-            throw new Error(`Contract exists and responds to view functions, but mintNFT gas estimation failed. This might be due to: 1) Insufficient permissions, 2) Invalid parameters, 3) Contract paused, or 4) Requires payment. Check contract implementation.`);
-          } catch (viewError) {
-            console.error('Contract view function test failed:', viewError);
-            throw new Error(`Contract interaction completely failed. The NFT Factory contract at ${addresses.nftFactory} may not exist or may not have the expected interface. Error: ${gasError instanceof Error ? gasError.message : 'Unknown error'}`);
-          }
-        }
-        
-        throw new Error(`Gas estimation failed: ${gasError instanceof Error ? gasError.message : 'Unknown error'}. This usually means the contract call would fail.`);
+        console.error('❌ Gas estimation failed:', gasError);
+        throw new Error(`Failed to estimate gas for NFT minting: ${gasError instanceof Error ? gasError.message : 'Unknown error'}`);
       }
 
-      // Prepare transaction options
-      const txOptions: { gasLimit: bigint; value?: bigint } = {
-        gasLimit: gasEstimate! * 120n / 100n, // Add 20% buffer (gasEstimate is defined by now)
-      };
+      // Add 20% buffer to gas estimate
+      const gasLimit = gasEstimate * 120n / 100n;
+      console.log('📊 Using gas limit:', gasLimit.toString());
 
-      // Add payment if required
-      if (requiresPayment) {
-        txOptions.value = paymentAmount;
-        console.log(`💰 Adding payment of ${ethers.formatEther(paymentAmount)} BNB to transaction`);
+      // Execute the minting transaction
+      let tx;
+      const mintingToSelf = recipientAddress.toLowerCase() === wallet.address.toLowerCase();
+      
+      if (mintingToSelf) {
+        console.log('🚀 Calling mint() function...');
+        tx = await contract.mint(tokenURI, { gasLimit });
+      } else {
+        console.log('🎁 Calling mintTo() function...');
+        tx = await contract.mintTo(recipientAddress, tokenURI, { gasLimit });
       }
 
-      const tx = await contract.mintNFT(
-        recipientAddress,
-        tokenURI,
-        nftDetails.name,
-        nftDetails.description,
-        txOptions
-      );
-
-      console.log('NFT minting transaction sent:', tx.hash);
+      console.log('✅ Transaction sent:', tx.hash);
+      console.log('⏳ Waiting for confirmation...');
+      
       const receipt = await tx.wait();
+      console.log('✅ Transaction confirmed in block:', receipt.blockNumber);
+
+      // Extract token ID from the Transfer event
+      // ERC721 Transfer event: Transfer(address indexed from, address indexed to, uint256 indexed tokenId)
+      const transferEvent = receipt.logs.find((log: any) => 
+        log.topics[0] === ethers.id('Transfer(address,address,uint256)')
+      );
+      
+      let tokenId = '0';
+      if (transferEvent && transferEvent.topics[3]) {
+        tokenId = BigInt(transferEvent.topics[3]).toString();
+        console.log('🎨 Minted NFT Token ID:', tokenId);
+      }
 
       return {
         success: true,
         hash: tx.hash,
         explorerUrl: this.getExplorerUrl(tx.hash),
-        tokenId: receipt.logs[0]?.topics[3] // Token ID from logs
+        tokenId: tokenId
       };
     } catch (error) {
       console.error('NFT minting failed:', error);
@@ -699,6 +557,94 @@ export class BlockchainService {
       return validTokens;
     } catch (error) {
       console.error('Failed to fetch user tokens:', error);
+      throw error;
+    }
+  }
+
+  // Get all NFTs created by a user from the shared collection
+  static async getUserNFTs(userAddress: string): Promise<Array<{
+    tokenId: string;
+    tokenURI: string;
+    owner: string;
+    creator: string;
+    metadata?: {
+      name?: string;
+      description?: string;
+      image?: string;
+      attributes?: any[];
+    };
+  }>> {
+    try {
+      console.log('📋 Fetching NFTs for user:', userAddress);
+      
+      const provider = this.getProvider();
+      const addresses = this.getContractAddresses();
+
+      if (!addresses.nftFactory) {
+        throw new Error('NFT collection contract address not configured');
+      }
+
+      const contract = new ethers.Contract(addresses.nftFactory, SIMPLE_NFT_COLLECTION_ABI, provider);
+
+      // Get all token IDs created by this user
+      const tokenIds = await contract.getTokensByCreator(userAddress);
+      console.log(`Found ${tokenIds.length} NFTs created by user`);
+
+      if (!tokenIds || tokenIds.length === 0) {
+        console.log('No NFTs found for user');
+        return [];
+      }
+
+      // Fetch details for each NFT
+      const nftDetailsPromises = tokenIds.map(async (tokenId: bigint) => {
+        try {
+          const tokenIdStr = tokenId.toString();
+          
+          // Check if token still exists
+          const exists = await contract.exists(tokenId);
+          if (!exists) {
+            console.log(`Token ${tokenIdStr} no longer exists`);
+            return null;
+          }
+
+          const [tokenURI, owner, creator] = await Promise.all([
+            contract.tokenURI(tokenId),
+            contract.ownerOf(tokenId),
+            contract.getCreator(tokenId)
+          ]);
+
+          // Parse metadata from tokenURI if it's a data URI
+          let metadata;
+          if (tokenURI.startsWith('data:application/json;base64,')) {
+            try {
+              const base64Data = tokenURI.split(',')[1];
+              const jsonString = atob(base64Data);
+              metadata = JSON.parse(jsonString);
+            } catch (e) {
+              console.error(`Failed to parse metadata for token ${tokenIdStr}:`, e);
+            }
+          }
+
+          return {
+            tokenId: tokenIdStr,
+            tokenURI,
+            owner,
+            creator,
+            metadata
+          };
+        } catch (error) {
+          console.error(`Failed to fetch details for token ${tokenId.toString()}:`, error);
+          return null;
+        }
+      });
+
+      const nfts = await Promise.all(nftDetailsPromises);
+      const validNFTs = nfts.filter((nft): nft is NonNullable<typeof nft> => nft !== null);
+      
+      console.log(`✅ Successfully fetched ${validNFTs.length} NFT details`);
+      return validNFTs;
+    } catch (error) {
+      console.error('Failed to fetch user NFTs:', error);
       throw error;
     }
   }

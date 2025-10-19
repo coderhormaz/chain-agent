@@ -1,7 +1,6 @@
 import React, { useState, useRef } from 'react';
-import { GreenfieldService } from '../services/greenfieldService';
+import { LighthouseService } from '../services/lighthouseService';
 import { useWalletStore } from '../store/walletStore';
-import { WalletService } from '../lib/wallet';
 
 interface UploadButtonProps {
   onUploadStart?: () => void;
@@ -21,12 +20,19 @@ export const UploadButton: React.FC<UploadButtonProps> = ({
 
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (!file || !wallet?.privateKey) return;
+    if (!file) return;
 
-    // Validate file
-    const validation = GreenfieldService.validateImageFile(file);
-    if (!validation.valid) {
-      onUploadError?.(validation.error || 'Invalid file');
+    // Validate file type
+    const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+    if (!validTypes.includes(file.type)) {
+      onUploadError?.('Please select a valid image file (JPEG, PNG, GIF, or WebP)');
+      return;
+    }
+
+    // Validate file size (max 10MB)
+    const maxSize = 10 * 1024 * 1024;
+    if (file.size > maxSize) {
+      onUploadError?.('File size must be less than 10MB');
       return;
     }
 
@@ -39,12 +45,9 @@ export const UploadButton: React.FC<UploadButtonProps> = ({
       const progressInterval = setInterval(() => {
         setUploadProgress(prev => Math.min(prev + 10, 90));
       }, 200);
-
-      // Decrypt private key for Greenfield
-      const privateKey = WalletService.decryptPrivateKey(wallet.privateKey);
       
-      // Upload to Greenfield
-      const result = await GreenfieldService.uploadImage(file, privateKey, file.name);
+      // Upload to Lighthouse (IPFS)
+      const result = await LighthouseService.uploadImage(file);
       
       clearInterval(progressInterval);
       setUploadProgress(100);
@@ -129,7 +132,7 @@ export const UploadButton: React.FC<UploadButtonProps> = ({
                 strokeLinejoin="round"
               />
             </svg>
-            <span>Upload Image to BNB Greenfield</span>
+            <span>Upload Image to Lighthouse IPFS</span>
           </div>
         )}
       </button>
@@ -163,7 +166,7 @@ export const ImagePreview: React.FC<ImagePreviewProps> = ({
         <img src={url} alt={fileName} className="chat-preview-image" />
         <div className="chat-preview-info">
           <p className="chat-preview-filename">{fileName}</p>
-          <p className="chat-preview-storage">📡 Stored on BNB Greenfield</p>
+          <p className="chat-preview-storage">📡 Stored on Lighthouse IPFS</p>
           {onRemove && (
             <button className="chat-preview-remove" onClick={onRemove}>
               ✕

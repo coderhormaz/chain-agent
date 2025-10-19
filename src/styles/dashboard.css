@@ -693,6 +693,16 @@
   color: var(--text-secondary);
 }
 
+.loading-transactions {
+  padding: 3rem;
+  text-align: center;
+}
+
+.loading-transactions .loading {
+  color: var(--primary-color);
+  font-size: 1rem;
+}
+
 .transaction-item {
   padding: 1.5rem;
   border-bottom: 1px solid var(--dark-border);
@@ -701,6 +711,7 @@
   gap: 1rem;
   align-items: center;
   transition: all var(--transition-normal);
+  cursor: pointer;
 }
 
 .transaction-item:last-child {
@@ -709,6 +720,7 @@
 
 .transaction-item:hover {
   background: var(--glass-bg);
+  transform: translateX(4px);
 }
 
 .tx-info {
@@ -732,6 +744,14 @@
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
+}
+
+.tx-hash {
+  font-size: 0.85rem;
+  color: var(--primary-color);
+  font-family: monospace;
+  font-weight: 500;
+  margin-bottom: 0.25rem;
 }
 
 .tx-address {
@@ -1230,6 +1250,86 @@
   margin-bottom: 0;
 }
 
+/* Minting Progress Styles */
+.minting-progress {
+  background: var(--glass-bg);
+  border: 1px solid var(--primary-color);
+  border-radius: var(--border-radius-md);
+  padding: 1rem;
+  margin-top: 1rem;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.progress-step {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: var(--primary-color);
+}
+
+.progress-step.success {
+  color: #00f2fe;
+}
+
+.progress-step p {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+
+.progress-spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--primary-color);
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+
+/* Error and Warning Messages */
+.error-message,
+.warning-message {
+  padding: 1rem;
+  border-radius: var(--border-radius-md);
+  margin-top: 1rem;
+  font-size: 0.9rem;
+}
+
+.error-message {
+  background: rgba(255, 107, 107, 0.1);
+  border: 1px solid rgba(255, 107, 107, 0.3);
+  color: #ff6b6b;
+}
+
+.error-message p {
+  margin: 0;
+}
+
+.warning-message {
+  background: rgba(255, 184, 77, 0.1);
+  border: 1px solid rgba(255, 184, 77, 0.3);
+  color: #ffb84d;
+}
+
+.warning-message p {
+  margin: 0;
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
   .dashboard-sidebar {
@@ -1593,7 +1693,8 @@
   font-weight: 500;
 }
 
-.greenfield-badge {
+.lighthouse-badge,
+.ipfs-badge {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
