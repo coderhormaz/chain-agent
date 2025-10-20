@@ -1,8 +1,10 @@
 import React from 'react';
 import { motion } from 'framer-motion';
+import { IoFlash, IoCube, IoImage, IoCloud } from 'react-icons/io5';
+import '../styles/components.css';
 
 interface FeatureCardProps {
-  icon: string;
+  icon: React.ReactNode;
   title: string;
   description: string;
   index: number;
@@ -41,22 +43,22 @@ const FeatureCard: React.FC<FeatureCardProps> = ({ icon, title, description, ind
 export const Features: React.FC = () => {
   const features = [
     {
-      icon: '🤖',
+      icon: <IoFlash size={48} />,
       title: 'AI Chat Assistant',
       description: 'Get instant help with blockchain queries, smart contract analysis, and trading insights powered by advanced AI.'
     },
     {
-      icon: '🪙',
+      icon: <IoCube size={48} />,
       title: 'Token Creation',
       description: 'Launch your own tokens on opBNB with our intuitive interface and smart contract templates.'
     },
     {
-      icon: '🖼️',
+      icon: <IoImage size={48} />,
       title: 'NFT Minting',
       description: 'Create, mint, and trade NFTs with minimal gas fees on the opBNB network.'
     },
     {
-      icon: '☁️',
+      icon: <IoCloud size={48} />,
       title: 'IPFS Storage',
       description: 'Decentralized storage solutions integrated with Lighthouse IPFS for your digital assets.'
     }

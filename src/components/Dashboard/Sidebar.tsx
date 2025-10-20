@@ -1,6 +1,8 @@
 import React from 'react';
 import { motion } from 'framer-motion';
+import { IoFlash, IoCube, IoImage, IoWallet, IoMoon, IoSunny } from 'react-icons/io5';
 import { useAuthStore } from '../../store/authStore';
+import { useTheme } from '../../contexts/ThemeContext';
 import '../../styles/dashboard.css';
 
 interface SidebarProps {
@@ -10,12 +12,13 @@ interface SidebarProps {
 
 const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => {
   const { user, logout } = useAuthStore();
+  const { theme, toggleTheme } = useTheme();
 
   const menuItems = [
-    { id: 'chat', label: 'AI Chat', icon: '🤖' },
-    { id: 'tokens', label: 'My Tokens', icon: '🪙' },
-    { id: 'nfts', label: 'My NFTs', icon: '🖼️' },
-    { id: 'wallet', label: 'Wallet', icon: '💼' }
+    { id: 'chat', label: 'AI Chat', icon: <IoFlash /> },
+    { id: 'tokens', label: 'My Tokens', icon: <IoCube /> },
+    { id: 'nfts', label: 'My NFTs', icon: <IoImage /> },
+    { id: 'wallet', label: 'Wallet', icon: <IoWallet /> }
   ];
 
   const handleSignOut = () => {
@@ -68,6 +71,28 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => {
             <p className="user-status">Connected</p>
           </div>
         </div>
+        
+        {/* Theme Toggle */}
+        <motion.button
+          className="theme-toggle-btn"
+          onClick={toggleTheme}
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          transition={{ type: "spring", stiffness: 400, damping: 17 }}
+          title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+        >
+          {theme === 'dark' ? (
+            <>
+              <IoSunny size={18} />
+              <span>Light Mode</span>
+            </>
+          ) : (
+            <>
+              <IoMoon size={18} />
+              <span>Dark Mode</span>
+            </>
+          )}
+        </motion.button>
         
         <motion.button
           className="sign-out-btn"

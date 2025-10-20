@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
+import { IoCube, IoCopy, IoCheckmarkCircle, IoRefresh, IoWallet, IoTime } from 'react-icons/io5';
 import { BlockchainService } from '../../services/blockchainService';
 import { useWalletStore } from '../../store/walletStore';
+import { WalletService } from '../../lib/wallet';
 
 interface Token {
   id: string;
@@ -79,6 +81,10 @@ const Tokens: React.FC = () => {
     
     try {
       console.log('Creating token with blockchain service...');
+      
+      // Decrypt private key before using it
+      const decryptedPrivateKey = WalletService.decryptPrivateKey(wallet.privateKey);
+      
       const result = await BlockchainService.createToken(
         {
           name: formData.name,
@@ -86,7 +92,7 @@ const Tokens: React.FC = () => {
           totalSupply: formData.totalSupply,
           decimals: formData.decimals
         },
-        wallet.privateKey
+        decryptedPrivateKey
       );
 
       if (result.success) {
@@ -155,7 +161,7 @@ const Tokens: React.FC = () => {
             disabled={isLoading || !wallet}
             style={{ padding: '10px 20px' }}
           >
-            🔄 Refresh
+            <IoRefresh /> Refresh
           </motion.button>
           <motion.button
             className="create-token-btn"
@@ -184,13 +190,13 @@ const Tokens: React.FC = () => {
 
       {!wallet ? (
         <div className="no-tokens">
-          <div className="no-tokens-icon">🔐</div>
+          <div className="no-tokens-icon"><IoWallet size={48} /></div>
           <h3>Wallet Not Connected</h3>
           <p>Please connect your wallet to view your tokens</p>
         </div>
       ) : isLoading ? (
         <div className="no-tokens">
-          <div className="no-tokens-icon">⏳</div>
+          <div className="no-tokens-icon"><IoTime size={48} /></div>
           <h3>Loading your tokens...</h3>
           <p>Fetching data from blockchain</p>
         </div>
@@ -198,7 +204,7 @@ const Tokens: React.FC = () => {
         <div className="tokens-grid">
           {tokens.length === 0 ? (
             <div className="no-tokens">
-              <div className="no-tokens-icon">🪙</div>
+              <div className="no-tokens-icon"><IoCube size={48} /></div>
               <h3>No tokens created yet</h3>
               <p>Create your first BEP-20 token on opBNB</p>
               <motion.button
@@ -220,7 +226,7 @@ const Tokens: React.FC = () => {
               transition={{ duration: 0.3, delay: index * 0.1 }}
             >
               <div className="token-header">
-                <div className="token-icon">🪙</div>
+                <div className="token-icon"><IoCube size={32} /></div>
                 <div className="token-info">
                   <h3>{token.name}</h3>
                   <p className="token-symbol">{token.symbol}</p>
@@ -247,7 +253,7 @@ const Tokens: React.FC = () => {
                       whileTap={{ scale: 0.9 }}
                       title={copiedAddress === token.contractAddress ? "Contract Copied!" : "Copy Contract Address"}
                     >
-                      {copiedAddress === token.contractAddress ? '✅' : '📋'}
+                      {copiedAddress === token.contractAddress ? <IoCheckmarkCircle /> : <IoCopy />}
                     </motion.button>
                   </div>
                 </div>
@@ -268,7 +274,7 @@ const Tokens: React.FC = () => {
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
                 >
-                  {copiedAddress === token.contractAddress ? '✅ Contract Copied!' : 'Copy Address'}
+                  {copiedAddress === token.contractAddress ? <><IoCheckmarkCircle /> Contract Copied!</> : <><IoCopy /> Copy Address</>}
                 </motion.button>
               </div>
             </motion.div>
@@ -331,8 +337,8 @@ const Tokens: React.FC = () => {
               </div>
               
               <div className="creation-info">
-                <p>🔧 This will deploy a new BEP-20 token contract on opBNB</p>
-                <p>💰 Estimated gas fee: ~0.001 BNB</p>
+                <p>▸ This will deploy a new BEP-20 token contract on opBNB</p>
+                <p>$ Estimated gas fee: ~0.001 BNB</p>
               </div>
 
               <div className="modal-actions">

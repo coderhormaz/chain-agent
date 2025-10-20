@@ -41,7 +41,7 @@ export const useConversationStore = create<ConversationState>()(
         {
           id: 'welcome',
           type: 'ai',
-          content: 'Hello! I\'m your opBNB AI Assistant powered by Gemini. I can help you:\n\n🪙 Create BEP-20 tokens\n🖼️ Mint NFTs with Lighthouse IPFS storage\n💸 Send BNB transactions\n📊 Check balances and transaction history\n\nJust tell me what you\'d like to do in natural language!',
+          content: 'Hello! I\'m your opBNB AI Assistant powered by Gemini. I can help you:\n\n◎ Create BEP-20 tokens\n■ Mint NFTs with Lighthouse IPFS storage\n⚡ Send BNB transactions\n◆ Check balances and transaction history\n\nJust tell me what you\'d like to do in natural language!',
           timestamp: new Date()
         }
       ],
@@ -81,7 +81,7 @@ export const useConversationStore = create<ConversationState>()(
             {
               id: 'welcome',
               type: 'ai',
-              content: 'Hello! I\'m your opBNB AI Assistant powered by Gemini. I can help you:\n\n🪙 Create BEP-20 tokens\n🖼️ Mint NFTs with Lighthouse IPFS storage\n💸 Send BNB transactions\n📊 Check balances and transaction history\n\nJust tell me what you\'d like to do in natural language!',
+              content: 'Hello! I\'m your opBNB AI Assistant powered by Gemini. I can help you:\n\n◎ Create BEP-20 tokens\n■ Mint NFTs with Lighthouse IPFS storage\n⚡ Send BNB transactions\n◆ Check balances and transaction history\n\nJust tell me what you\'d like to do in natural language!',
               timestamp: new Date()
             }
           ],
@@ -140,15 +140,15 @@ export const useConversationStore = create<ConversationState>()(
           let successMessage: ConversationMessage;
           
           if (result.success) {
-            let content = `✅ **Transaction Successful!**\n\n`;
-            content += `🔗 **Transaction Hash**: \`${result.hash}\`\n`;
+            let content = `✓ **Transaction Successful!**\n\n`;
+            content += `▸ **Transaction Hash**: \`${result.hash}\`\n`;
             
             if (result.contractAddress) {
-              content += `📄 **Contract Address**: \`${result.contractAddress}\`\n`;
+              content += `◆ **Contract Address**: \`${result.contractAddress}\`\n`;
             }
             
             if (result.tokenId) {
-              content += `🎨 **Token ID**: \`${result.tokenId}\`\n`;
+              content += `◈ **Token ID**: \`${result.tokenId}\`\n`;
             }
             
             if (result.explorerUrl) {
@@ -165,7 +165,7 @@ export const useConversationStore = create<ConversationState>()(
             successMessage = {
               id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
               type: 'ai',
-              content: `❌ **Transaction Failed**\n\n${result.error}`,
+              content: `✗ **Transaction Failed**\n\n${result.error}`,
               timestamp: new Date()
             };
           }
@@ -181,7 +181,7 @@ export const useConversationStore = create<ConversationState>()(
           const errorMessage: ConversationMessage = {
             id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
             type: 'ai',
-            content: `❌ **Transaction Failed**\n\n${error.message || 'Unknown error occurred'}`,
+            content: `✗ **Transaction Failed**\n\n${error.message || 'Unknown error occurred'}`,
             timestamp: new Date()
           };
 

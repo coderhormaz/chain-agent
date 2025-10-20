@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { motion } from 'framer-motion';
 import Sidebar from './Sidebar';
 import AIChat from './AIChat';
 import Wallet from './Wallet';
@@ -29,16 +28,7 @@ const Dashboard: React.FC = () => {
     <div className="dashboard-container">
       <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
       <main className="dashboard-main">
-        <motion.div
-          key={activeTab}
-          className="dashboard-content"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -20 }}
-          transition={{ duration: 0.3 }}
-        >
-          {renderContent()}
-        </motion.div>
+        {renderContent()}
       </main>
     </div>
   );

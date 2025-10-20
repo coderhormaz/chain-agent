@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
+import { IoMail, IoChatbubbles, IoPeople, IoCheckmarkCircle } from 'react-icons/io5';
+import '../styles/components.css';
 
 interface ContactFormData {
   name: string;
@@ -50,7 +52,7 @@ export const ContactUs: React.FC = () => {
         animate={{ opacity: 1, scale: 1 }}
         className="contact-success"
       >
-        <div className="success-icon">✅</div>
+        <div className="success-icon"><IoCheckmarkCircle /></div>
         <h3>Message Sent Successfully!</h3>
         <p>Thank you for reaching out. We'll get back to you within 24 hours.</p>
       </motion.div>
@@ -87,7 +89,7 @@ export const ContactUs: React.FC = () => {
                 
                 <div className="contact-methods">
                   <div className="contact-method">
-                    <div className="contact-icon">📧</div>
+                    <div className="contact-icon"><IoMail /></div>
                     <div>
                       <h4>Email</h4>
                       <p>support@opbnb-ai.com</p>
@@ -95,7 +97,7 @@ export const ContactUs: React.FC = () => {
                   </div>
                   
                   <div className="contact-method">
-                    <div className="contact-icon">💬</div>
+                    <div className="contact-icon"><IoChatbubbles /></div>
                     <div>
                       <h4>Live Chat</h4>
                       <p>Available 24/7</p>
@@ -103,7 +105,7 @@ export const ContactUs: React.FC = () => {
                   </div>
                   
                   <div className="contact-method">
-                    <div className="contact-icon">🌍</div>
+                    <div className="contact-icon"><IoPeople /></div>
                     <div>
                       <h4>Community</h4>
                       <p>Join our Discord</p>

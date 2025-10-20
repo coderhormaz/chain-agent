@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
+import { IoFlash, IoSend, IoTrash } from 'react-icons/io5';
 import { useConversationStore } from '../../store/conversationStore';
 import { geminiAI } from '../../services/geminiAI';
 import { UploadButton, ImagePreview } from '../UploadButton';
@@ -144,7 +145,7 @@ const AIChat: React.FC = () => {
         console.error('Error executing action:', error);
         addMessage({
           type: 'ai',
-          content: `❌ **Execution Failed**
+          content: `✗ **Execution Failed**
 
 An error occurred while executing the blockchain transaction. Please try again.`
         });
@@ -156,7 +157,7 @@ An error occurred while executing the blockchain transaction. Please try again.`
       rejectAction();
       addMessage({
         type: 'ai',
-        content: `❌ **Action Cancelled**
+        content: `✗ **Action Cancelled**
 
 No problem! The action has been cancelled. Is there something else I can help you with?`
       });
@@ -199,7 +200,7 @@ No problem! The action has been cancelled. Is there something else I can help yo
         
         addMessage({
           type: 'ai',
-          content: `🎉 **Image uploaded successfully to Lighthouse IPFS!**
+          content: `✓ **Image uploaded successfully to Lighthouse IPFS!**
 
 Your image "${fileName}" has been stored on the decentralized network.
 
@@ -219,7 +220,7 @@ ${confirmationMessage}`,
         console.error('Error generating confirmation message:', error);
         addMessage({
           type: 'ai',
-          content: `🎉 **Image uploaded successfully!** 
+          content: `✓ **Image uploaded successfully!** 
 
 Your image "${fileName}" has been stored on Lighthouse IPFS. There was an error generating the confirmation. Please try again.`,
           uploadedImage: { url, fileName }
@@ -231,11 +232,11 @@ Your image "${fileName}" has been stored on Lighthouse IPFS. There was an error 
       
       addMessage({
         type: 'ai',
-        content: `🎉 **Image uploaded successfully to Lighthouse IPFS!**
+        content: `✓ **Image uploaded successfully to Lighthouse IPFS!**
 
 Your image has been stored on the decentralized network. Now I need a few more details to mint your NFT:
 
-📝 **Please provide:**
+▸ **Please provide:**
 1. **NFT Name** - What should your NFT be called?
 2. **Description** - Tell me about your NFT (optional)
 
@@ -249,7 +250,7 @@ You can provide both in one message like: "Name: My Art, Description: Beautiful 
   const handleUploadError = (error: string) => {
     addMessage({
       type: 'ai',
-      content: `❌ **Upload Failed**
+      content: `✗ **Upload Failed**
 
 ${error}
 
@@ -362,10 +363,10 @@ Please try again with a different image or check your internet connection.`
   };
 
   return (
-    <div className="ai-chat-container">
+    <>
       <div className="chat-header">
         <div className="chat-title">
-          <span className="chat-icon">🤖</span>
+          <span className="chat-icon"><IoFlash /></span>
           <h2>opBNB AI Assistant</h2>
           <span className="gemini-badge">Powered by Gemini</span>
         </div>
@@ -380,7 +381,7 @@ Please try again with a different image or check your internet connection.`
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
           >
-            Clear Chat
+            <IoTrash /> Clear Chat
           </motion.button>
         </div>
       </div>
@@ -469,13 +470,11 @@ Please try again with a different image or check your internet connection.`
             whileTap={{ scale: 0.95 }}
           >
             <span>{isProcessing ? 'Processing...' : 'Send'}</span>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M2 12L22 2L13 22L11 13L2 12Z"/>
-            </svg>
+            <IoSend />
           </motion.button>
         </div>
       </div>
-    </div>
+    </>
   );
 };
 
