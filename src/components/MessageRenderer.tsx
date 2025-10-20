@@ -5,38 +5,52 @@ interface MessageRendererProps {
 }
 
 const MessageRenderer: React.FC<MessageRendererProps> = ({ content }) => {
-  // Parse markdown-style links [text](url)
+  // Parse markdown-style text formatting (bold, links)
   const parseContent = (text: string) => {
     const parts: (string | React.ReactElement)[] = [];
-    const linkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
+    // Combined regex for links and bold text
+    const markdownRegex = /(\[([^\]]+)\]\(([^)]+)\))|(\*\*([^*]+)\*\*)/g;
     let lastIndex = 0;
     let match;
+    let keyCounter = 0;
 
-    while ((match = linkRegex.exec(text)) !== null) {
-      // Add text before the link
+    while ((match = markdownRegex.exec(text)) !== null) {
+      // Add text before the match
       if (match.index > lastIndex) {
         parts.push(text.substring(lastIndex, match.index));
       }
 
-      // Add the clickable link
-      const [, linkText, url] = match;
-      parts.push(
-        <a
-          key={match.index}
-          href={url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="blockchain-link"
-          style={{
-            color: '#007bff',
-            textDecoration: 'underline',
-            cursor: 'pointer',
-            fontWeight: '500'
-          }}
-        >
-          {linkText}
-        </a>
-      );
+      // Check if it's a link [text](url)
+      if (match[1]) {
+        const linkText = match[2];
+        const url = match[3];
+        parts.push(
+          <a
+            key={`link-${keyCounter++}`}
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="blockchain-link"
+            style={{
+              color: '#007bff',
+              textDecoration: 'underline',
+              cursor: 'pointer',
+              fontWeight: '500'
+            }}
+          >
+            {linkText}
+          </a>
+        );
+      }
+      // Check if it's bold text **text**
+      else if (match[4]) {
+        const boldText = match[5];
+        parts.push(
+          <strong key={`bold-${keyCounter++}`} style={{ fontWeight: '700' }}>
+            {boldText}
+          </strong>
+        );
+      }
 
       lastIndex = match.index + match[0].length;
     }
