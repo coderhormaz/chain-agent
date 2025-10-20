@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
+import { IoImage, IoCopy, IoCheckmarkCircle, IoCloudUpload, IoCheckmarkDone, IoClose, IoTime, IoCloudDone } from 'react-icons/io5';
 import { useWalletStore } from '../../store/walletStore';
 import { WalletService } from '../../lib/wallet';
 import { BlockchainService } from '../../services/blockchainService';
@@ -252,7 +253,7 @@ const NFTs: React.FC = () => {
       <div className="nfts-grid">
         {nfts.length === 0 ? (
           <div className="no-nfts">
-            <div className="no-nfts-icon">🖼️</div>
+            <div className="no-nfts-icon"><IoImage size={48} /></div>
             <h3>No NFTs minted yet</h3>
             <p>Create your first NFT with images on Lighthouse IPFS</p>
             <motion.button
@@ -310,7 +311,7 @@ const NFTs: React.FC = () => {
                         whileTap={{ scale: 0.9 }}
                         title={copiedAddress === nft.contractAddress ? "Contract Copied!" : "Copy Contract Address"}
                       >
-                        {copiedAddress === nft.contractAddress ? '✅' : '📋'}
+                        {copiedAddress === nft.contractAddress ? <IoCheckmarkCircle /> : <IoCopy />}
                       </motion.button>
                     </div>
                   </div>
@@ -349,7 +350,7 @@ const NFTs: React.FC = () => {
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                   >
-                    {copiedAddress === nft.contractAddress ? '✅ Contract Copied!' : 'Copy Contract'}
+                    {copiedAddress === nft.contractAddress ? <><IoCheckmarkCircle /> Contract Copied!</> : <><IoCopy /> Copy Contract</>}
                   </motion.button>
                 </div>
               </div>
@@ -405,7 +406,7 @@ const NFTs: React.FC = () => {
                       <img src={imagePreview} alt="Preview" className="image-preview" />
                     ) : (
                       <div className="upload-placeholder">
-                        <span>📁</span>
+                        <IoCloudUpload size={48} />
                         <p>Click to upload image</p>
                       </div>
                     )}
@@ -414,9 +415,9 @@ const NFTs: React.FC = () => {
               </div>
               
               <div className="minting-info">
-                <p>🌱 Images stored on Lighthouse IPFS</p>
-                <p>💰 Estimated gas fee: ~0.002 BNB</p>
-                <p>⏱️ Processing time: 1-3 minutes</p>
+                <p><IoCloudDone /> Images stored on Lighthouse IPFS</p>
+                <p>$ Estimated gas fee: ~0.002 BNB</p>
+                <p><IoTime /> Processing time: 1-3 minutes</p>
               </div>
 
               {/* Progress indicator */}
@@ -425,18 +426,18 @@ const NFTs: React.FC = () => {
                   {mintingStage === 'uploading' && (
                     <div className="progress-step">
                       <div className="progress-spinner"></div>
-                      <p>📤 {mintingProgress}</p>
+                      <p><IoCloudUpload /> {mintingProgress}</p>
                     </div>
                   )}
                   {mintingStage === 'minting' && (
                     <div className="progress-step">
                       <div className="progress-spinner"></div>
-                      <p>⚡ {mintingProgress}</p>
+                      <p><IoImage /> {mintingProgress}</p>
                     </div>
                   )}
                   {mintingStage === 'success' && (
                     <div className="progress-step success">
-                      <p>✅ {mintingProgress}</p>
+                      <p><IoCheckmarkDone /> {mintingProgress}</p>
                     </div>
                   )}
                 </div>
@@ -445,7 +446,7 @@ const NFTs: React.FC = () => {
               {/* Error message */}
               {errorMessage && (
                 <div className="error-message">
-                  <p>❌ {errorMessage}</p>
+                  <p><IoClose /> {errorMessage}</p>
                 </div>
               )}
 

@@ -1,13 +1,17 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
+import { IoCopy, IoCheckmarkCircle, IoTrendingUp, IoTrendingDown, IoEye } from 'react-icons/io5';
 import { useWalletStore } from '../../store/walletStore';
 import { ethers } from 'ethers';
 import { TransactionService, type Transaction } from '../../services/transactionService';
+import { WalletService } from '../../lib/wallet';
 
 const Wallet: React.FC = () => {
   const { wallet, balance, balanceUSD, bnbPrice, isLoadingPrice, setBalance, updateBNBPrice } = useWalletStore();
   const [isLoadingBalance, setIsLoadingBalance] = useState(false);
+  const [showWarningModal, setShowWarningModal] = useState(false);
   const [showPrivateKey, setShowPrivateKey] = useState(false);
+  const [decryptedPrivateKey, setDecryptedPrivateKey] = useState<string>('');
   const [sendAmount, setSendAmount] = useState('');
   const [recipientAddress, setRecipientAddress] = useState('');
   const [showSendModal, setShowSendModal] = useState(false);
@@ -102,7 +106,10 @@ const Wallet: React.FC = () => {
     try {
       setIsLoadingBalance(true);
       const provider = new ethers.JsonRpcProvider('https://opbnb-mainnet-rpc.bnbchain.org');
-      const walletInstance = new ethers.Wallet(wallet.privateKey, provider);
+      
+      // Decrypt private key before using it
+      const decryptedPrivateKey = WalletService.decryptPrivateKey(wallet.privateKey);
+      const walletInstance = new ethers.Wallet(decryptedPrivateKey, provider);
       
       const tx = await walletInstance.sendTransaction({
         to: recipientAddress,
@@ -123,12 +130,22 @@ const Wallet: React.FC = () => {
   };
 
   const showPrivateKeyModal = () => {
-    const confirmed = window.confirm(
-      '⚠️ SECURITY WARNING ⚠️\n\nNever share your private key with anyone. Anyone with access to your private key can control your funds and assets.\n\nAre you sure you want to reveal your private key?'
-    );
-    if (confirmed) {
+    // Show the warning modal first
+    setShowWarningModal(true);
+  };
+
+  const handleConfirmReveal = () => {
+    if (wallet?.privateKey) {
+      // Decrypt the private key before showing
+      const decrypted = WalletService.decryptPrivateKey(wallet.privateKey);
+      setDecryptedPrivateKey(decrypted);
+      setShowWarningModal(false);
       setShowPrivateKey(true);
     }
+  };
+
+  const handleCancelReveal = () => {
+    setShowWarningModal(false);
   };
 
   return (
@@ -158,7 +175,7 @@ const Wallet: React.FC = () => {
             Wallet Balance 
             {bnbPrice && (
               <span className="bnb-price-indicator">
-                {bnbPrice.change24h >= 0 ? '📈' : '📉'} ${bnbPrice.price.toLocaleString('en-US', { 
+                {bnbPrice.change24h >= 0 ? <IoTrendingUp /> : <IoTrendingDown />} ${bnbPrice.price.toLocaleString('en-US', { 
                   minimumFractionDigits: 0, 
                   maximumFractionDigits: 0 
                 })}
@@ -203,7 +220,7 @@ const Wallet: React.FC = () => {
                 whileTap={{ scale: 0.9 }}
                 title={copiedText === wallet.address ? "Address Copied!" : "Copy Wallet Address"}
               >
-                {copiedText === wallet.address ? '✅' : '📋'}
+                {copiedText === wallet.address ? <IoCheckmarkCircle /> : <IoCopy />}
               </motion.button>
             )}
           </div>
@@ -230,7 +247,7 @@ const Wallet: React.FC = () => {
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
             >
-              Reveal Private Key
+              <IoEye /> Reveal Private Key
             </motion.button>
           </div>
         </motion.div>
@@ -356,39 +373,137 @@ const Wallet: React.FC = () => {
         </div>
       )}
 
-      {/* Private Key Modal */}
-      {showPrivateKey && wallet?.privateKey && (
-        <div className="modal-overlay" onClick={() => setShowPrivateKey(false)}>
-          <motion.div
-            className="modal private-key-modal"
+      {/* Security Warning Modal */}
+      {showWarningModal && (
+        <motion.div
+          className="security-warning-modal-compact"
+          onClick={handleCancelReveal}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.2 }}
+        >
+          <div
+            className="modal-content-wrapper"
             onClick={(e) => e.stopPropagation()}
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.3 }}
           >
-            <h3>⚠️ Private Key</h3>
-            <div className="warning-text">
-              <p>Keep this private key secure and never share it with anyone!</p>
+            {/* Header */}
+            <div className="warning-header-compact">
+              <span className="warning-icon-compact">⚠️</span>
+              <div>
+                <h3>Security Confirmation</h3>
+                <p>Critical wallet information</p>
+              </div>
             </div>
-            <div className="private-key-display">
-              <code>{wallet.privateKey}</code>
-              <motion.button
-                className={`copy-btn ${copiedText === wallet.privateKey ? 'copied' : ''}`}
-                onClick={() => copyToClipboard(wallet.privateKey)}
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.9 }}
+
+            {/* Scrollable Content */}
+            <div className="warning-content-compact">
+              <div className="alert-box">
+                <strong>🔐 Your private key = Complete wallet control</strong>
+                <p>Anyone with this key can access all funds</p>
+              </div>
+
+              <div className="rules-compact">
+                <div className="rule-group">
+                  <h4>❌ Never</h4>
+                  <div className="rule">Share with anyone</div>
+                  <div className="rule">Screenshot or store in cloud</div>
+                </div>
+                <div className="rule-group">
+                  <h4>✅ Always</h4>
+                  <div className="rule">Check surroundings</div>
+                  <div className="rule">Write on paper, store safely</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="modal-actions-compact">
+              <button
+                className="modal-btn secondary"
+                onClick={handleCancelReveal}
               >
-                {copiedText === wallet.privateKey ? '✅ Copied!' : 'Copy'}
-              </motion.button>
+                Cancel
+              </button>
+              <button
+                className="modal-btn danger"
+                onClick={handleConfirmReveal}
+              >
+                Reveal Key
+              </button>
             </div>
-            <button
-              className="modal-btn danger"
-              onClick={() => setShowPrivateKey(false)}
-            >
-              Close
-            </button>
-          </motion.div>
-        </div>
+          </div>
+        </motion.div>
+      )}
+
+      {/* Private Key Modal */}
+      {showPrivateKey && decryptedPrivateKey && (
+        <motion.div
+          className="private-key-modal-compact"
+          onClick={() => {
+            setShowPrivateKey(false);
+            setDecryptedPrivateKey('');
+          }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.2 }}
+        >
+          <div
+            className="modal-content-wrapper"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="pk-header-compact">
+              <span className="pk-icon">🔐</span>
+              <div>
+                <h3>Your Private Key</h3>
+                <p>Store securely • Never share</p>
+              </div>
+            </div>
+
+            {/* Private Key Display */}
+            <div className="pk-display-section">
+              <div className="pk-display-box">
+                <code className="pk-code">{decryptedPrivateKey}</code>
+                <button
+                  className={`pk-copy-btn ${copiedText === decryptedPrivateKey ? 'copied' : ''}`}
+                  onClick={() => copyToClipboard(decryptedPrivateKey)}
+                >
+                  {copiedText === decryptedPrivateKey ? (
+                    <><IoCheckmarkCircle size={16} /> Copied</>
+                  ) : (
+                    <><IoCopy size={16} /> Copy</>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Quick Tips */}
+            <div className="pk-tips">
+              <div className="pk-tip">📝 Write on paper</div>
+              <div className="pk-tip">🔒 Store in safe</div>
+              <div className="pk-tip">❌ No screenshots</div>
+              <div className="pk-tip">🚫 Never share</div>
+            </div>
+
+            {/* Action */}
+            <div className="modal-actions-compact">
+              <button
+                className="modal-btn danger full-width"
+                onClick={() => {
+                  setShowPrivateKey(false);
+                  setDecryptedPrivateKey(''); // Clear decrypted key from memory
+                }}
+              >
+                Close & Clear
+              </button>
+            </div>
+
+            {/* Trust Badge */}
+            <div className="pk-footer">
+              🔐 End-to-end encrypted • Never stored
+            </div>
+          </div>
+        </motion.div>
       )}
     </div>
   );

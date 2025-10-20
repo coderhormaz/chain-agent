@@ -73,107 +73,48 @@ class GeminiAIService {
 
   // Build the system prompt for Gemini
   private buildPrompt(userInput: string, context: any[]): string {
-    const systemPrompt = `
-You are an opBNB AI Assistant specialized in blockchain operations. Your role is to:
+    const systemPrompt = `You are an opBNB blockchain assistant. Extract actions from natural language and respond in JSON.
 
-1. Understand natural language requests for blockchain actions
-2. Extract structured data from user requests
-3. Ask for missing information when needed
-4. Provide confirmation messages before executing actions
+ACTIONS: create_token | mint_nft | upload_nft | send_transaction | check_balance | get_transactions
 
-SUPPORTED ACTIONS:
-- create_token: Create BEP-20 tokens (AI will auto-fill intelligent defaults based on user request)
-- mint_nft: Mint NFTs (requires: name, description, optional: attributes). For image, always use upload_nft first.
-- upload_nft: Show upload button for NFT image upload to Lighthouse IPFS (no additional details required)
-- send_transaction: Send BNB or tokens (requires: recipient, amount, token type)
-- check_balance: Check wallet balance
-- get_transactions: Get transaction history
+TOKEN DEFAULTS:
+- symbol: Auto-generate 3-4 letters from name ("Dragon Token" -> "DRAG")
+- totalSupply: Utility=100M, Gaming=1B, Meme=1T, Governance=10M, Default=1M (users can override)
+- decimals: Always 18
 
-TOKEN CREATION AI INTELLIGENCE:
-When user requests to create a token, you should intelligently determine:
-- name: Extract from user request or suggest based on context
-- symbol: Generate 3-4 letter symbol from name (e.g., "My Coin" -> "MYCN", "Gaming Token" -> "GAME") 
-- totalSupply: Smart defaults based on token type, but users can specify ANY amount:
-  * Utility tokens: 100,000,000 (100M)
-  * Gaming tokens: 1,000,000,000 (1B) 
-  * Meme coins: 1,000,000,000,000 (1T)
-  * Governance tokens: 10,000,000 (10M)
-  * Stablecoins: 1,000,000 (1M)
-  * Default: 1,000,000 (1M)
-  * Users can override with ANY amount (no limits!)
-- decimals: Always default to 18 (standard for BEP-20)
+REQUIRED FIELDS:
+- create_token: name, symbol, totalSupply (decimals auto-set to 18)
+- mint_nft: ALWAYS start with upload_nft first, then ask for name/description after upload
+- upload_nft: No fields needed, show upload button immediately
+- send_transaction: recipient (0x address), amount, token (default: BNB)
 
-EXAMPLES:
-User: "Create a gaming token called Dragon Quest Token"
-AI Response: name="Dragon Quest Token", symbol="DQT", totalSupply=1000000000, decimals=18
-
-User: "I want to make a meme coin named PEPE2 with 100 trillion supply"  
-AI Response: name="PEPE2", symbol="PEPE2", totalSupply=100000000000000, decimals=18
-
-User: "Create a utility token for my app called AppCoin with 50 million supply"
-AI Response: name="AppCoin", symbol="APP", totalSupply=50000000, decimals=18
-
-RESPONSE FORMAT:
-You must respond in this JSON structure wrapped in markdown code blocks:
-
+JSON FORMAT:
 \`\`\`json
 {
-  "response": "Your conversational response to the user",
+  "response": "Brief conversational response",
   "action": {
-    "action": "create_token|mint_nft|send_transaction|check_balance|get_transactions|unknown",
+    "action": "action_type",
     "confidence": 0.95,
-    "details": {
-      "name": "extracted name",
-      "symbol": "extracted symbol",
-      // ... other relevant fields
-    },
-    "missingFields": ["field1", "field2"],
-    "isComplete": false
+    "details": {"field": "value"},
+    "missingFields": ["field"],
+    "isComplete": true/false
   },
   "requiresConfirmation": false
 }
 \`\`\`
 
 RULES:
-1. Always extract available information from user input
-2. For create_token: If you have name, symbol, and totalSupply, proceed to confirmation (decimals will be set to 18 automatically)
-3. If information is missing, ask for it conversationally
-4. When all required fields are complete, ask for confirmation
-5. Be helpful and friendly
-6. If the request is unclear, ask for clarification
+1. Extract all available data from user input
+2. Auto-fill token defaults intelligently
+3. For NFT: ALWAYS use upload_nft first, never ask for details before upload
+4. Ask for missing fields conversationally
+5. Set isComplete=true when all required fields present
+6. Keep responses brief and friendly
 
-IMPORTANT: For token creation, ONLY name, symbol, and totalSupply are required. Do NOT ask for decimals as it defaults to 18.
+Context: ${JSON.stringify(context)}
+Input: "${userInput}"
 
-EXAMPLES:
-User: "Create a token called DogeCoin"
-Response: Extract action=create_token, name=DogeCoin, ask for symbol and supply (decimals will default to 18 automatically)
-
-User: "Upload NFT" or "I want to upload an image for NFT"
-Response: Extract action=upload_nft, show upload button immediately - do NOT ask for details yet
-
-User: "Create an NFT" or "Mint NFT" or "I want to make an NFT"
-Response: Extract action=upload_nft, suggest they upload an image first - do NOT ask for name/description yet
-
-User: "create a nft called hormaz description nothing"
-Response: Extract action=upload_nft, suggest they upload an image first - details can be processed after upload
-
-User: "name hormaz symbol ho supply 9900"
-Response: Extract action=create_token, name=Hormaz, symbol=HO, totalSupply=9900, decimals=18, ask for confirmation - DO NOT ask for more info
-
-User: "Send 2 BNB to 0x123..."
-Response: Extract action=send_transaction, amount=2, token=BNB, recipient=0x123..., ask for confirmation
-
-User: "transfer 0.5 bnb to 0xabc..." or "send 1 BNB to my friend 0xdef..."
-Response: Extract action=send_transaction, amount=0.5, token=BNB, recipient=0xabc..., ask for confirmation
-
-User: "send 100 USDT to 0x456..." (with token address)
-Response: Extract action=send_transaction, amount=100, token=0x55d398326f99059ff775485246999027b3197955, recipient=0x456..., ask for confirmation
-
-Current conversation context: ${JSON.stringify(context)}
-
-User input: "${userInput}"
-
-Please analyze this request and respond with the JSON structure.`;
+Respond with JSON:`;
 
     return systemPrompt;
   }
@@ -274,7 +215,7 @@ Please analyze this request and respond with the JSON structure.`;
         const tokenGasEstimate = await BlockchainService.estimateGas('token');
         const tokenGasCostUSD = await BlockchainService.getGasCostUSD('token');
         
-        return `🪙 **Token Creation Confirmation**
+        return `◎ **Token Creation Confirmation**
 
 You're about to create a BEP-20 token with these details:
 • **Name**: ${tokenDetails.name}
@@ -282,8 +223,8 @@ You're about to create a BEP-20 token with these details:
 • **Total Supply**: ${parseInt(tokenDetails.totalSupply || '0').toLocaleString()}
 • **Decimals**: ${tokenDetails.decimals}
 
-💰 **Estimated Gas Cost**: ~${tokenGasEstimate} BNB (${tokenGasCostUSD})
-🔗 **Network**: opBNB Mainnet
+$ **Estimated Gas Cost**: ~${tokenGasEstimate} BNB (${tokenGasCostUSD})
+▸ **Network**: opBNB Mainnet
 
 This will deploy a new smart contract on opBNB. The contract will be automatically verified.
 
@@ -291,7 +232,7 @@ This will deploy a new smart contract on opBNB. The contract will be automatical
       }
 
       case 'upload_nft':
-        return `📤 **NFT Upload Ready**
+        return `▲ **NFT Upload Ready**
 
 I'll help you upload your image to Lighthouse IPFS and mint it as an NFT!
 
@@ -307,7 +248,7 @@ I'll help you upload your image to Lighthouse IPFS and mint it as an NFT!
         const nftGasEstimate = await BlockchainService.estimateGas('nft');
         const nftGasCostUSD = await BlockchainService.getGasCostUSD('nft');
         
-        return `🖼️ **NFT Minting Confirmation**
+        return `■ **NFT Minting Confirmation**
 
 You're about to mint an NFT with these details:
 • **Name**: ${nftDetails.name}
@@ -315,8 +256,8 @@ You're about to mint an NFT with these details:
 • **Image**: ${nftDetails.imageUrl ? 'Provided' : 'Not provided'}
 ${nftDetails.attributes ? `• **Attributes**: ${nftDetails.attributes.length} traits` : ''}
 
-💰 **Estimated Gas Cost**: ~${nftGasEstimate} BNB (${nftGasCostUSD})
-🔗 **Network**: opBNB Mainnet
+$ **Estimated Gas Cost**: ~${nftGasEstimate} BNB (${nftGasCostUSD})
+▸ **Network**: opBNB Mainnet
 
 Metadata will be stored on-chain. The NFT will be minted to your wallet.
 
@@ -328,15 +269,15 @@ Metadata will be stored on-chain. The NFT will be minted to your wallet.
         const transferGasEstimate = await BlockchainService.estimateGas('transfer');
         const transferGasCostUSD = await BlockchainService.getGasCostUSD('transfer');
         
-        return `💸 **Transaction Confirmation**
+        return `⚡ **Transaction Confirmation**
 
 You're about to send:
 • **Amount**: ${txDetails.amount} ${txDetails.token || 'BNB'}
 • **To**: \`${txDetails.recipient}\`
 • **From**: Your connected wallet
 
-💰 **Estimated Gas Cost**: ~${transferGasEstimate} BNB (${transferGasCostUSD})
-🔗 **Network**: opBNB Mainnet
+$ **Estimated Gas Cost**: ~${transferGasEstimate} BNB (${transferGasCostUSD})
+▸ **Network**: opBNB Mainnet
 
 This transaction cannot be reversed once confirmed.
 
