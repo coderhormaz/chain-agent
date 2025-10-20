@@ -147,7 +147,8 @@ const AIChat: React.FC = () => {
           type: 'ai',
           content: `✗ **Execution Failed**
 
-An error occurred while executing the blockchain transaction. Please try again.`
+An error occurred while executing the blockchain transaction. Please try again.`,
+          status: 'error'
         });
       } finally {
         setProcessing(false);
@@ -159,7 +160,8 @@ An error occurred while executing the blockchain transaction. Please try again.`
         type: 'ai',
         content: `✗ **Action Cancelled**
 
-No problem! The action has been cancelled. Is there something else I can help you with?`
+No problem! The action has been cancelled. Is there something else I can help you with?`,
+        status: 'error'
       });
     } else {
       // Unclear response, ask again
@@ -254,7 +256,8 @@ You can provide both in one message like: "Name: My Art, Description: Beautiful 
 
 ${error}
 
-Please try again with a different image or check your internet connection.`
+Please try again with a different image or check your internet connection.`,
+      status: 'error'
     });
   };
 
@@ -368,7 +371,6 @@ Please try again with a different image or check your internet connection.`
         <div className="chat-title">
           <span className="chat-icon"><IoFlash /></span>
           <h2>opBNB AI Assistant</h2>
-          <span className="gemini-badge">Powered by Gemini</span>
         </div>
         <div className="chat-actions">
           <div className="chat-status">
@@ -390,7 +392,7 @@ Please try again with a different image or check your internet connection.`
         {messages.map((message) => (
           <motion.div
             key={message.id}
-            className={`message ${message.type}`}
+            className={`message ${message.type} ${message.status || 'info'}`}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3 }}

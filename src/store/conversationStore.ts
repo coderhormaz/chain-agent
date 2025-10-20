@@ -11,6 +11,7 @@ export interface ConversationMessage {
   requiresConfirmation?: boolean;
   showUpload?: boolean;
   uploadedImage?: {url: string, fileName: string};
+  status?: 'success' | 'error' | 'info';
 }
 
 export interface PendingAction {
@@ -159,14 +160,16 @@ export const useConversationStore = create<ConversationState>()(
               id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
               type: 'ai',
               content,
-              timestamp: new Date()
+              timestamp: new Date(),
+              status: 'success'
             };
           } else {
             successMessage = {
               id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
               type: 'ai',
               content: `✗ **Transaction Failed**\n\n${result.error}`,
-              timestamp: new Date()
+              timestamp: new Date(),
+              status: 'error'
             };
           }
 
@@ -182,7 +185,8 @@ export const useConversationStore = create<ConversationState>()(
             id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
             type: 'ai',
             content: `✗ **Transaction Failed**\n\n${error.message || 'Unknown error occurred'}`,
-            timestamp: new Date()
+            timestamp: new Date(),
+            status: 'error'
           };
 
           set((state) => ({
