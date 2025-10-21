@@ -45,19 +45,32 @@ export function Header() {
 	return (
 		<header
 			className={cn(
-				'sticky top-0 z-50 mx-auto w-full max-w-5xl border-b border-transparent md:rounded-md md:border md:transition-all md:ease-out',
+				'sticky top-0 z-50 mx-auto w-full max-w-6xl border-b border-transparent md:rounded-md md:border md:transition-all md:ease-out header-glass',
 				{
-					'bg-black/80 dark:bg-black/80 supports-[backdrop-filter]:bg-black/60 dark:supports-[backdrop-filter]:bg-black/60 border-white/10 dark:border-white/10 backdrop-blur-xl md:top-4 md:max-w-4xl md:shadow-lg':
+					'header-scrolled md:top-4 md:max-w-5xl md:shadow-lg':
 						scrolled && !open,
-					'bg-black/85 dark:bg-black/85 backdrop-blur-xl': open,
 				},
 			)}
+			style={
+				scrolled && !open
+					? {
+							backgroundColor: 'rgba(255, 255, 255, 0.6)',
+							borderColor: 'var(--border-medium)',
+							backdropFilter: 'blur(20px)',
+					  }
+					: open
+					? {
+							backgroundColor: 'rgba(255, 255, 255, 0.9)',
+							backdropFilter: 'blur(20px)',
+					  }
+					: undefined
+			}
 		>
 			<nav
 				className={cn(
-					'flex h-14 w-full items-center justify-between px-4 md:h-12 md:transition-all md:ease-out',
+					'flex h-14 w-full items-center justify-between px-5 md:h-12 md:transition-all md:ease-out',
 					{
-						'md:px-2': scrolled,
+						'md:px-3': scrolled,
 					},
 				)}
 			>
@@ -79,9 +92,14 @@ export function Header() {
 
 			<div
 				className={cn(
-					'bg-black/85 dark:bg-black/85 backdrop-blur-xl fixed top-14 right-0 bottom-0 left-0 z-50 flex flex-col overflow-hidden border-y border-white/10 dark:border-white/10 md:hidden',
+					'fixed top-14 right-0 bottom-0 left-0 z-50 flex flex-col overflow-hidden border-y md:hidden',
 					open ? 'block' : 'hidden',
 				)}
+				style={{
+					backgroundColor: 'rgba(255, 255, 255, 0.9)',
+					borderColor: 'var(--border-medium)',
+					backdropFilter: 'blur(20px)',
+				}}
 			>
 				<div
 					data-slot={open ? 'open' : 'closed'}
