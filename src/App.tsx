@@ -1,6 +1,6 @@
-import { Navbar } from './components/Navbar';
+import { Header } from './components/ui/header-2';
 import { Hero } from './components/Hero';
-import { Features } from './components/Features';
+import { Features } from './components/ui/Features';
 import { Stats } from './components/Stats';
 import { ContactUs } from './components/ContactUs';
 import { Footer } from './components/Footer';
@@ -9,6 +9,7 @@ import Dashboard from './components/Dashboard/Dashboard';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { useAuth } from './hooks/useAuth';
 import { useAuthStore } from './store/authStore';
+import './index.css';
 import './styles/globals.css';
 import './styles/components.css';
 
@@ -37,7 +38,7 @@ function App() {
           <Dashboard />
         ) : (
           <>
-            <Navbar />
+            <Header />
             <Hero />
             <Features />
             <Stats />

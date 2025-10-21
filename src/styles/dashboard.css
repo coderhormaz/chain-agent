@@ -175,33 +175,7 @@
   margin: 0;
 }
 
-.theme-toggle-btn {
-  width: 100%;
-  padding: var(--space-3) var(--space-4);
-  background: rgba(59, 130, 246, 0.08);
-  border: 1px solid rgba(59, 130, 246, 0.2);
-  color: var(--primary);
-  border-radius: var(--radius-md);
-  font-weight: 500;
-  font-size: var(--text-sm);
-  cursor: pointer;
-  transition: all var(--transition-fast);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-2);
-  margin-bottom: var(--space-3);
-}
-
-.theme-toggle-btn:hover {
-  background: rgba(59, 130, 246, 0.12);
-  border-color: rgba(59, 130, 246, 0.3);
-  transform: translateY(-1px);
-}
-
-.theme-toggle-btn span {
-  font-size: var(--text-sm);
-}
+/* Theme toggle button - inherits from components.css */
 
 .sign-out-btn {
   width: 100%;
