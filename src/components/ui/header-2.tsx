@@ -47,9 +47,9 @@ export function Header() {
 			className={cn(
 				'sticky top-0 z-50 mx-auto w-full max-w-5xl border-b border-transparent md:rounded-md md:border md:transition-all md:ease-out',
 				{
-					'bg-background/95 supports-[backdrop-filter]:bg-background/50 border-border backdrop-blur-lg md:top-4 md:max-w-4xl md:shadow':
+					'bg-black/80 dark:bg-black/80 supports-[backdrop-filter]:bg-black/60 dark:supports-[backdrop-filter]:bg-black/60 border-white/10 dark:border-white/10 backdrop-blur-xl md:top-4 md:max-w-4xl md:shadow-lg':
 						scrolled && !open,
-					'bg-background/90': open,
+					'bg-black/85 dark:bg-black/85 backdrop-blur-xl': open,
 				},
 			)}
 		>
@@ -79,7 +79,7 @@ export function Header() {
 
 			<div
 				className={cn(
-					'bg-background/90 fixed top-14 right-0 bottom-0 left-0 z-50 flex flex-col overflow-hidden border-y md:hidden',
+					'bg-black/85 dark:bg-black/85 backdrop-blur-xl fixed top-14 right-0 bottom-0 left-0 z-50 flex flex-col overflow-hidden border-y border-white/10 dark:border-white/10 md:hidden',
 					open ? 'block' : 'hidden',
 				)}
 			>
