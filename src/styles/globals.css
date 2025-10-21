@@ -845,13 +845,25 @@ section > .container > div:first-child p {
   background-color: rgb(249, 250, 251);
 }
 
-[data-theme="light"] button:not([class*="outline"]):not([class*="ghost"]) {
-  background-color: #000;
+[data-theme="light"] button:not([class*="outline"]):not([class*="ghost"]):not(.theme-toggle-btn) {
+  background-color: #000 !important;
   color: #fff !important;
 }
 
-[data-theme="light"] button:not([class*="outline"]):not([class*="ghost"]):hover {
-  background-color: rgb(17, 24, 39);
+[data-theme="light"] button:not([class*="outline"]):not([class*="ghost"]):not(.theme-toggle-btn):hover {
+  background-color: rgb(17, 24, 39) !important;
+}
+
+/* Get Started button in header */
+[data-theme="light"] header button:not([class*="outline"]):not([class*="ghost"]):not(.theme-toggle-btn),
+[data-theme="light"] header nav button:not([class*="outline"]):not([class*="ghost"]):not(.theme-toggle-btn) {
+  background-color: #000 !important;
+  color: #fff !important;
+}
+
+[data-theme="light"] header button:not([class*="outline"]):not([class*="ghost"]):not(.theme-toggle-btn):hover,
+[data-theme="light"] header nav button:not([class*="outline"]):not([class*="ghost"]):not(.theme-toggle-btn):hover {
+  background-color: rgb(17, 24, 39) !important;
 }
 
 /* Theme Toggle Icon */
@@ -862,4 +874,29 @@ section > .container > div:first-child p {
 [data-theme="light"] .theme-toggle-btn svg {
   color: #000 !important;
   stroke: #000 !important;
+}
+
+/* Get Started Button Override */
+[data-theme="light"] .get-started-btn,
+[data-theme="light"] button.get-started-btn {
+  background-color: #000 !important;
+  color: #fff !important;
+}
+
+[data-theme="light"] .get-started-btn:hover,
+[data-theme="light"] button.get-started-btn:hover {
+  background-color: rgb(17, 24, 39) !important;
+  color: #fff !important;
+}
+
+[data-theme="dark"] .get-started-btn,
+[data-theme="dark"] button.get-started-btn {
+  background-color: #fff !important;
+  color: #000 !important;
+}
+
+[data-theme="dark"] .get-started-btn:hover,
+[data-theme="dark"] button.get-started-btn:hover {
+  background-color: rgb(229, 231, 235) !important;
+  color: #000 !important;
 }

@@ -731,10 +731,10 @@ button[size="icon"] {
    HERO SECTION - Premium Design
    =================================== */
 .hero {
-  padding: calc(var(--header-height) + var(--space-20)) 0 var(--space-20);
+  padding: calc(var(--header-height) + var(--space-8)) 0 var(--space-16);
   position: relative;
   overflow: hidden;
-  min-height: 100vh;
+  min-height: 85vh;
   display: flex;
   align-items: center;
   background: #1a1b26;

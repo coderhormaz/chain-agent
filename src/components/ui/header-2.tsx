@@ -6,11 +6,13 @@ import { MenuToggleIcon } from '@/components/ui/menu-toggle-icon';
 import { useScroll } from '@/components/ui/use-scroll';
 import { useAuthModalStore } from '../../store/index';
 import { ThemeToggle } from '../ThemeToggle';
+import { useTheme } from '../../contexts/ThemeContext';
 
 export function Header() {
 	const [open, setOpen] = React.useState(false);
 	const scrolled = useScroll(10);
 	const { openLogin, openSignup } = useAuthModalStore();
+	const { theme } = useTheme();
 
 	const links = [
 		{
@@ -83,7 +85,16 @@ export function Header() {
 					))}
 					<ThemeToggle />
 					<Button variant="outline" onClick={openLogin}>Sign In</Button>
-					<Button onClick={openSignup}>Get Started</Button>
+					<Button 
+						onClick={openSignup}
+						style={{
+							backgroundColor: theme === 'light' ? '#000 !important' : '#fff !important',
+							color: theme === 'light' ? '#fff !important' : '#000 !important',
+						} as React.CSSProperties}
+						className="get-started-btn"
+					>
+						Get Started
+					</Button>
 				</div>
 				<Button size="icon" variant="outline" onClick={() => setOpen(!open)} className="md:hidden">
 					<MenuToggleIcon open={open} className="size-5" duration={300} />
