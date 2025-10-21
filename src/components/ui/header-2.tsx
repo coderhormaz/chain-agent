@@ -76,7 +76,7 @@ export function Header() {
 					},
 				)}
 			>
-				<WordmarkIcon className="h-4" />
+				<WordmarkIcon className="h-4 gradient-text-green" />
 				<div className="hidden items-center gap-2 md:flex">
 					{links.map((link, i) => (
 						<a key={i} className={buttonVariants({ variant: 'ghost' })} href={link.href}>
