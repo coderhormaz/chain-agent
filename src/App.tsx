@@ -1,9 +1,7 @@
 import { Header } from './components/ui/header-2';
 import { Hero } from './components/Hero';
 import { Features } from './components/ui/Features';
-import { Stats } from './components/Stats';
-import { ContactUs } from './components/ContactUs';
-import { Footer } from './components/Footer';
+import { Extra } from './components/Extra';
 import { MultiStepAuthModal } from './components/MultiStepAuthModal';
 import Dashboard from './components/Dashboard/Dashboard';
 import { ThemeProvider } from './contexts/ThemeContext';
@@ -41,9 +39,7 @@ function App() {
             <Header />
             <Hero />
             <Features />
-            <Stats />
-            <ContactUs />
-            <Footer />
+            <Extra />
             <MultiStepAuthModal />
           </>
         )}

@@ -6,9 +6,18 @@ export function Features() {
     const isDark = theme === 'dark'
 
     return (
-        <section className={`py-16 md:py-24 relative overflow-hidden transition-colors duration-300 ${
-            isDark ? 'bg-[#0f0f1e]' : 'bg-white'
-        }`}>
+        <section 
+            className={`py-16 md:py-24 relative overflow-hidden transition-colors duration-300 ${
+                isDark ? 'bg-[#0f0f1e]' : 'bg-white'
+            }`}
+            style={{
+                padding: '5rem 0',
+                background: isDark 
+                    ? 'linear-gradient(180deg, transparent 0%, rgba(102, 126, 234, 0.05) 100%)'
+                    : 'linear-gradient(180deg, transparent 0%, rgba(102, 126, 234, 0.03) 100%)',
+                position: 'relative'
+            }}
+        >
             {/* Background gradient overlay */}
             <div className={`absolute inset-0 bg-gradient-to-b ${
                 isDark 
@@ -33,7 +42,7 @@ export function Features() {
                 </div>
 
                 {/* Glowing Effect Demo */}
-                <div className="w-full max-w-7xl mx-auto">
+                <div className="w-full max-w-7xl mx-auto mb-0">
                     <GlowingEffectDemo />
                 </div>
             </div>
