@@ -68,7 +68,7 @@ export const Hero: React.FC = () => {
             className="hero-title premium-title"
             variants={itemVariants}
           >
-            Build blockchain apps<br />
+            Build <span className="gradient-text-green">blockchain apps</span><br />
             with a single <span className="gradient-text-green">command</span>
           </motion.h1>
           

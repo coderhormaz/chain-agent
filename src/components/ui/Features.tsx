@@ -22,8 +22,8 @@ export function Features() {
                     <h2 className={`text-4xl md:text-5xl lg:text-6xl font-bold leading-tight tracking-tight transition-colors duration-300 ${
                         isDark ? 'text-white' : 'text-gray-900'
                     }`}>
-                        Powerful AI-Driven opBNB<br />
-                        Blockchain Solutions
+                        Powerful <span className="gradient-text-green">AI-Driven</span> opBNB<br />
+                        <span className="gradient-text-green">Blockchain Solutions</span>
                     </h2>
                     <p className={`text-base md:text-lg max-w-3xl mx-auto leading-relaxed transition-colors duration-300 ${
                         isDark ? 'text-gray-300' : 'text-gray-600'
@@ -43,9 +43,7 @@ export function Features() {
                         }`}>
                             <div className="space-y-4">
                                 <div className="flex items-start gap-3">
-                                    <Zap className={`w-5 h-5 flex-shrink-0 mt-1 transition-colors duration-300 ${
-                                        isDark ? 'text-white' : 'text-gray-900'
-                                    }`} strokeWidth={2.5} />
+                                    <Zap className="w-5 h-5 flex-shrink-0 mt-1 gradient-text-green" strokeWidth={2.5} />
                                     <h3 className={`text-base font-semibold transition-colors duration-300 ${
                                         isDark ? 'text-white' : 'text-gray-900'
                                     }`}>Lightning Fast</h3>
@@ -66,9 +64,7 @@ export function Features() {
                         }`}>
                             <div className="space-y-4">
                                 <div className="flex items-start gap-3">
-                                    <Cpu className={`w-5 h-5 flex-shrink-0 mt-1 transition-colors duration-300 ${
-                                        isDark ? 'text-white' : 'text-gray-900'
-                                    }`} strokeWidth={2.5} />
+                                    <Cpu className="w-5 h-5 flex-shrink-0 mt-1 gradient-text-green" strokeWidth={2.5} />
                                     <h3 className={`text-base font-semibold transition-colors duration-300 ${
                                         isDark ? 'text-white' : 'text-gray-900'
                                     }`}>AI Powered</h3>
@@ -89,9 +85,7 @@ export function Features() {
                         }`}>
                             <div className="space-y-4">
                                 <div className="flex items-start gap-3">
-                                    <Fingerprint className={`w-5 h-5 flex-shrink-0 mt-1 transition-colors duration-300 ${
-                                        isDark ? 'text-white' : 'text-gray-900'
-                                    }`} strokeWidth={2.5} />
+                                    <Fingerprint className="w-5 h-5 flex-shrink-0 mt-1 gradient-text-green" strokeWidth={2.5} />
                                     <h3 className={`text-base font-semibold transition-colors duration-300 ${
                                         isDark ? 'text-white' : 'text-gray-900'
                                     }`}>Secure Wallets</h3>
@@ -112,9 +106,7 @@ export function Features() {
                         }`}>
                             <div className="space-y-4">
                                 <div className="flex items-start gap-3">
-                                    <Pencil className={`w-5 h-5 flex-shrink-0 mt-1 transition-colors duration-300 ${
-                                        isDark ? 'text-white' : 'text-gray-900'
-                                    }`} strokeWidth={2.5} />
+                                    <Pencil className="w-5 h-5 flex-shrink-0 mt-1 gradient-text-green" strokeWidth={2.5} />
                                     <h3 className={`text-base font-semibold transition-colors duration-300 ${
                                         isDark ? 'text-white' : 'text-gray-900'
                                     }`}>Create & Trade</h3>
@@ -135,9 +127,7 @@ export function Features() {
                         }`}>
                             <div className="space-y-4">
                                 <div className="flex items-start gap-3">
-                                    <Settings2 className={`w-5 h-5 flex-shrink-0 mt-1 transition-colors duration-300 ${
-                                        isDark ? 'text-white' : 'text-gray-900'
-                                    }`} strokeWidth={2.5} />
+                                    <Settings2 className="w-5 h-5 flex-shrink-0 mt-1 gradient-text-green" strokeWidth={2.5} />
                                     <h3 className={`text-base font-semibold transition-colors duration-300 ${
                                         isDark ? 'text-white' : 'text-gray-900'
                                     }`}>Smart Contracts</h3>
@@ -158,9 +148,7 @@ export function Features() {
                         }`}>
                             <div className="space-y-4">
                                 <div className="flex items-start gap-3">
-                                    <Sparkles className={`w-5 h-5 flex-shrink-0 mt-1 transition-colors duration-300 ${
-                                        isDark ? 'text-white' : 'text-gray-900'
-                                    }`} strokeWidth={2.5} />
+                                    <Sparkles className="w-5 h-5 flex-shrink-0 mt-1 gradient-text-green" strokeWidth={2.5} />
                                     <h3 className={`text-base font-semibold transition-colors duration-300 ${
                                         isDark ? 'text-white' : 'text-gray-900'
                                     }`}>Cloud Storage</h3>
