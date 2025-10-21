@@ -8,40 +8,41 @@ export function GlowingEffectDemo() {
   const isDark = theme === 'dark';
 
   return (
-    <ul className="grid grid-cols-1 grid-rows-none gap-4 md:grid-cols-12 md:grid-rows-3 lg:gap-4 xl:max-h-[34rem] xl:grid-rows-2">
+    <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6">
       <GridItem
-        area="md:[grid-area:1/1/2/7] xl:[grid-area:1/1/2/5]"
         icon={<Zap className="h-5 w-5 gradient-text-green" strokeWidth={2.5} />}
         title="Lightning Fast"
         description="Real-time AI analysis and instant transaction execution on opBNB with minimal latency."
         isDark={isDark}
       />
       <GridItem
-        area="md:[grid-area:1/7/2/13] xl:[grid-area:2/1/3/5]"
         icon={<Cpu className="h-5 w-5 gradient-text-green" strokeWidth={2.5} />}
         title="AI Powered"
         description="Gemini AI integration for intelligent market analysis and predictive insights."
         isDark={isDark}
       />
       <GridItem
-        area="md:[grid-area:2/1/3/7] xl:[grid-area:1/5/3/8]"
         icon={<Fingerprint className="h-5 w-5 gradient-text-green" strokeWidth={2.5} />}
         title="Secure Wallets"
         description="Multi-wallet support with enterprise-grade security and Supabase authentication."
         isDark={isDark}
       />
       <GridItem
-        area="md:[grid-area:2/7/3/13] xl:[grid-area:1/8/2/13]"
         icon={<Pencil className="h-5 w-5 gradient-text-green" strokeWidth={2.5} />}
         title="Create & Trade"
         description="Deploy custom NFTs and tokens with AI assistance. Manage all your assets in one place."
         isDark={isDark}
       />
       <GridItem
-        area="md:[grid-area:3/1/4/13] xl:[grid-area:2/8/3/13]"
         icon={<Settings2 className="h-5 w-5 gradient-text-green" strokeWidth={2.5} />}
         title="Smart Contracts"
         description="Optimized contract deployment and management powered by AI recommendations."
+        isDark={isDark}
+      />
+      <GridItem
+        icon={<Sparkles className="h-5 w-5 gradient-text-green" strokeWidth={2.5} />}
+        title="Cloud Storage"
+        description="Lighthouse integration for decentralized file storage and NFT metadata."
         isDark={isDark}
       />
     </ul>
@@ -49,16 +50,15 @@ export function GlowingEffectDemo() {
 }
 
 interface GridItemProps {
-  area: string;
   icon: React.ReactNode;
   title: string;
   description: React.ReactNode;
   isDark: boolean;
 }
 
-const GridItem = ({ area, icon, title, description, isDark }: GridItemProps) => {
+const GridItem = ({ icon, title, description, isDark }: GridItemProps) => {
   return (
-    <li className={cn("min-h-[14rem] list-none", area)}>
+    <li className="min-h-[14rem] list-none">
       <div className={cn(
         "relative h-full rounded-[1.25rem] p-2 md:rounded-[1.5rem] md:p-3 transition-colors duration-300",
         isDark 
