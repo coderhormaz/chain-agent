@@ -38,6 +38,13 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('theme', theme);
     
+    // Add or remove dark class for Tailwind
+    if (theme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+    
     // Remove transitioning class after a brief delay
     const timer = setTimeout(() => {
       document.documentElement.classList.remove('theme-transitioning');

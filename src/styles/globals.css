@@ -802,3 +802,64 @@ section > .container > div:first-child p {
 .z-20 { z-index: 20; }
 .z-50 { z-index: 50; }
 .z-max { z-index: 9999; }
+
+/* Header Glass Effect */
+[data-theme="dark"] .header-glass.header-scrolled {
+  background-color: rgba(0, 0, 0, 0.6) !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+[data-theme="dark"] .header-glass > div {
+  background-color: rgba(0, 0, 0, 0.85) !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+/* Button Theme Overrides */
+[data-theme="light"] button,
+[data-theme="light"] a {
+  color: var(--text-primary);
+}
+
+[data-theme="light"] header nav a,
+[data-theme="light"] header nav a[href*="#"],
+[data-theme="light"] nav a[class*="ghost"],
+[data-theme="light"] button[class*="ghost"] {
+  color: #000 !important;
+}
+
+[data-theme="light"] header nav a:hover,
+[data-theme="light"] header nav a[href*="#"]:hover,
+[data-theme="light"] nav a[class*="ghost"]:hover,
+[data-theme="light"] button[class*="ghost"]:hover {
+  color: #000 !important;
+  background-color: transparent !important;
+}
+
+[data-theme="light"] button[class*="outline"] {
+  color: #000 !important;
+  border-color: rgb(209, 213, 219);
+  background-color: transparent;
+}
+
+[data-theme="light"] button[class*="outline"]:hover {
+  background-color: rgb(249, 250, 251);
+}
+
+[data-theme="light"] button:not([class*="outline"]):not([class*="ghost"]) {
+  background-color: #000;
+  color: #fff !important;
+}
+
+[data-theme="light"] button:not([class*="outline"]):not([class*="ghost"]):hover {
+  background-color: rgb(17, 24, 39);
+}
+
+/* Theme Toggle Icon */
+[data-theme="light"] .theme-toggle-btn {
+  color: #000 !important;
+}
+
+[data-theme="light"] .theme-toggle-btn svg {
+  color: #000 !important;
+  stroke: #000 !important;
+}
