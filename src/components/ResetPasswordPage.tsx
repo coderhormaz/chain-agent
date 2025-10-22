@@ -25,54 +25,65 @@ export default function ResetPasswordPage({ onBack }: ResetPasswordPageProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [isValidating, setIsValidating] = useState(true);
+  const [isTokenValid, setIsTokenValid] = useState(true);
 
   useEffect(() => {
+    let isMounted = true;
+
     // Get the token_hash from query parameters (PKCE flow)
     const urlParams = new URLSearchParams(window.location.search);
     const tokenHash = urlParams.get('token_hash');
     const type = urlParams.get('type');
     
     if (!tokenHash || type !== 'recovery') {
-      setError('Invalid or missing reset link. Please request a new password reset link.');
-      setIsValidating(false);
+      if (isMounted) {
+        setError('Invalid or missing reset link. Please request a new password reset link.');
+        setIsTokenValid(false);
+        setIsValidating(false);
+      }
       return;
     }
 
     // Exchange the token_hash for a session using verifyOtp
     const verifyCode = async () => {
       try {
-        console.log('🔐 Verifying password reset token...');
-        
         // Exchange the token_hash for a session
         const { data, error } = await supabase.auth.verifyOtp({
           token_hash: tokenHash,
           type: 'recovery',
         });
         
+        if (!isMounted) return;
+
         if (error) {
-          console.error('Token verification error:', error);
           setError('Invalid or expired reset link. Please request a new password reset.');
+          setIsTokenValid(false);
           setIsValidating(false);
           return;
         }
 
         if (!data.session) {
-          console.error('No session established after verification');
           setError('Failed to establish session. Please request a new reset link.');
+          setIsTokenValid(false);
           setIsValidating(false);
           return;
         }
 
-        console.log('✅ Reset token verified, session established, ready to accept new password');
         setIsValidating(false);
       } catch (err) {
-        console.error('Verification error:', err);
-        setError('Failed to verify reset link. Please try again.');
-        setIsValidating(false);
+        if (isMounted) {
+          setError('Failed to verify reset link. Please try again.');
+          setIsTokenValid(false);
+          setIsValidating(false);
+        }
       }
     };
 
     verifyCode();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const validatePassword = (pwd: string): string | null => {
@@ -178,7 +189,7 @@ export default function ResetPasswordPage({ onBack }: ResetPasswordPageProps) {
                 Your password has been updated successfully. Redirecting to login...
               </p>
             </>
-          ) : error && !password ? (
+          ) : !isTokenValid ? (
             <>
               <div className="flex justify-center mb-4">
                 <AlertCircle className="h-16 w-16 text-red-400" />
@@ -208,7 +219,7 @@ export default function ResetPasswordPage({ onBack }: ResetPasswordPageProps) {
           )}
         </CardHeader>
 
-        {!isSuccess && !error && (
+        {!isSuccess && isTokenValid && (
           <CardContent className="space-y-6 pb-6">
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="space-y-2">

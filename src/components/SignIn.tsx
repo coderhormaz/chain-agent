@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { EyeIcon, EyeOffIcon } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import type { JSX, SVGProps } from "react";
 import { AuthService } from '../services/auth';
 import { useWalletStore, useAuthModalStore } from '../store';
@@ -64,6 +65,7 @@ export default function SignIn() {
     setError('');
     setEmail('');
     setPassword('');
+    setShowResetModal(false);
   };
 
   const handleResetPassword = () => {
@@ -328,9 +330,10 @@ export default function SignIn() {
         </CardFooter>
       </Card>
       
-      {/* Password Reset Modal */}
-      {showResetModal && (
-        <PasswordResetModal onClose={() => setShowResetModal(false)} />
+      {/* Password Reset Modal - Rendered via portal to avoid nested dialog issues */}
+      {showResetModal && createPortal(
+        <PasswordResetModal onClose={() => setShowResetModal(false)} />,
+        document.body
       )}
     </div>
   );

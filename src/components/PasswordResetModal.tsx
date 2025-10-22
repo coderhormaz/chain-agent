@@ -22,10 +22,11 @@ export default function PasswordResetModal({ onClose }: PasswordResetModalProps)
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
 
-  // Refs for accessibility
+  // Refs for accessibility and timeout management
   const modalRef = useRef<HTMLDivElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
   const emailInputRef = useRef<HTMLInputElement>(null);
+  const closeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Focus management and accessibility
   useEffect(() => {
@@ -37,7 +38,7 @@ export default function PasswordResetModal({ onClose }: PasswordResetModalProps)
 
     // Handle Escape key
     const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
+      if (e.key === 'Escape' && !isSubmitting) {
         onClose();
       }
     };
@@ -76,27 +77,64 @@ export default function PasswordResetModal({ onClose }: PasswordResetModalProps)
       document.removeEventListener('keydown', handleEscape);
       document.removeEventListener('keydown', handleTab);
       
-      // Restore focus to previously focused element
-      previousFocusRef.current?.focus();
+      // Clear any pending auto-close timeout
+      if (closeTimeoutRef.current) {
+        clearTimeout(closeTimeoutRef.current);
+        closeTimeoutRef.current = null;
+      }
+      
+      // Restore focus to previously focused element (with safety checks)
+      if (
+        previousFocusRef.current &&
+        document.contains(previousFocusRef.current) &&
+        typeof previousFocusRef.current.focus === 'function'
+      ) {
+        try {
+          previousFocusRef.current.focus();
+        } catch {
+          // Fallback to body if focus fails
+          document.body.focus();
+        }
+      } else {
+        // Fallback to body if element is not attached or not focusable
+        document.body.focus();
+      }
     };
-  }, [onClose]);
+  }, [onClose, isSubmitting]);
 
   const validateEmail = (email: string): boolean => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
+    // Trim and normalize the email
+    const normalizedEmail = email.trim().toLowerCase();
+    
+    // More robust email validation regex
+    // Rejects: consecutive dots, leading/trailing dots, invalid characters
+    const emailRegex = /^[a-z0-9]([a-z0-9._-]*[a-z0-9])?@[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/i;
+    
+    // Additional checks
+    if (normalizedEmail.length > 254) return false; // RFC 5321 max length
+    if (normalizedEmail.includes('..')) return false; // Consecutive dots
+    
+    const [localPart, domainPart] = normalizedEmail.split('@');
+    if (!localPart || !domainPart) return false;
+    if (localPart.length > 64) return false; // RFC 5321 local part max
+    
+    return emailRegex.test(normalizedEmail);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isSubmitting || isSuccess) return;
 
+    // Trim and normalize email
+    const trimmedEmail = email.trim();
+
     // Client-side validation
-    if (!email.trim()) {
+    if (!trimmedEmail) {
       setError('Please enter your email address');
       return;
     }
 
-    if (!validateEmail(email)) {
+    if (!validateEmail(trimmedEmail)) {
       setError('Please enter a valid email address');
       return;
     }
@@ -105,12 +143,12 @@ export default function PasswordResetModal({ onClose }: PasswordResetModalProps)
     setIsSubmitting(true);
 
     try {
-      await AuthService.resetPassword(email);
+      await AuthService.resetPassword(trimmedEmail);
       setIsSuccess(true);
       setError('');
       
       // Auto-close after 3 seconds on success
-      setTimeout(() => {
+      closeTimeoutRef.current = setTimeout(() => {
         onClose();
       }, 3000);
     } catch (error: unknown) {
@@ -118,7 +156,7 @@ export default function PasswordResetModal({ onClose }: PasswordResetModalProps)
         ? error.message 
         : 'Failed to send password reset email. Please try again.';
       setError(errorMessage);
-      console.error('❌ Password reset failed:', error);
+      console.error('Password reset failed:', error);
     } finally {
       setIsSubmitting(false);
     }
@@ -126,6 +164,11 @@ export default function PasswordResetModal({ onClose }: PasswordResetModalProps)
 
   const handleClose = () => {
     if (!isSubmitting) {
+      // Clear any pending auto-close timeout
+      if (closeTimeoutRef.current) {
+        clearTimeout(closeTimeoutRef.current);
+        closeTimeoutRef.current = null;
+      }
       onClose();
     }
   };

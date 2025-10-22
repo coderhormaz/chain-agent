@@ -219,7 +219,7 @@ export class AuthService {
   }
 
   // Reset password - send reset email
-  static async resetPassword(email: string) {
+  static async resetPassword(email: string): Promise<{ success: boolean; message: string }> {
     try {
       console.log('🔐 Sending password reset email...');
       
@@ -230,19 +230,21 @@ export class AuthService {
       if (error) {
         console.error('🚫 Password reset error:', error);
         
-        // Provide better error messages
+        // Handle invalid email format
         if (error.message.includes('Invalid email')) {
           throw new Error('Please enter a valid email address.');
-        } else if (error.message.includes('Email not found')) {
-          // For security, don't reveal if email exists or not
-          throw new Error('If an account exists with this email, you will receive a password reset link.');
-        } else {
-          throw new Error(error.message || 'Failed to send password reset email.');
         }
+        
+        // Rethrow other errors
+        throw new Error(error.message || 'Failed to send password reset email.');
       }
 
       console.log('✅ Password reset email sent');
-      return { success: true };
+      // Return generic message for security (don't reveal if email exists)
+      return { 
+        success: true,
+        message: 'If an account exists with this email, you will receive a password reset link.'
+      };
     } catch (error) {
       console.error('❌ Password reset error:', error);
       throw error;
