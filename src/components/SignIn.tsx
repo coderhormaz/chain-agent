@@ -66,12 +66,6 @@ export default function SignIn() {
     setPassword('');
   };
 
-  const handleSignUpClick = (e: React.MouseEvent) => {
-    e.preventDefault();
-    closeModals();
-    openSignup();
-  };
-
   const handleResetPassword = () => {
     setShowResetModal(true);
   };
@@ -136,6 +130,7 @@ export default function SignIn() {
       // Restore focus to previously focused element
       previousFocusRef.current?.focus();
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
