@@ -1,20 +1,10 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { useAuthModalStore, useWalletStore } from '../store';
 import { ParticleBackground } from './ParticleBackground';
+import { useAuthModalStore } from '../store';
 
 export const Hero: React.FC = () => {
-  const { openSignup } = useAuthModalStore();
-  const { user, wallet, balance } = useWalletStore();
-
-  const getUserName = () => {
-    if (user?.user_metadata?.full_name) {
-      return user.user_metadata.full_name.split(' ')[0]; // First name only
-    }
-    return null;
-  };
-
-  const userName = getUserName();
+  const { openLogin } = useAuthModalStore();
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -52,18 +42,6 @@ export const Hero: React.FC = () => {
           initial="hidden"
           animate="visible"
         >
-          {userName && (
-            <motion.div
-              className="welcome-badge"
-              variants={itemVariants}
-            >
-              <span className="welcome-text">Welcome back, {userName}!</span>
-              {wallet && (
-                <span className="balance-text">{balance} BNB</span>
-              )}
-            </motion.div>
-          )}
-
           <motion.h1 
             className="hero-title premium-title"
             variants={itemVariants}
@@ -86,7 +64,7 @@ export const Hero: React.FC = () => {
           >
             <motion.button 
               className="btn-hero-primary"
-              onClick={openSignup}
+              onClick={openLogin}
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
             >
