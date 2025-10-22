@@ -4,6 +4,7 @@ import { Features } from './components/ui/Features';
 import { Extra } from './components/Extra';
 import { ContactUs } from './components/ContactUs';
 import SignIn from './components/SignIn';
+import SignUp from './components/SignUp';
 import ResetPasswordPage from './components/ResetPasswordPage';
 import Dashboard from './components/Dashboard/Dashboard';
 import { ThemeProvider } from './contexts/ThemeContext';
@@ -18,7 +19,7 @@ import './styles/components.css';
 function App() {
   useAuth(); // Initialize authentication
   const { isAuthenticated, isLoading, isInitialized } = useAuthStore();
-  const { isLoginOpen } = useAuthModalStore();
+  const { isLoginOpen, isSignupOpen } = useAuthModalStore();
   const [currentPath, setCurrentPath] = useState(window.location.pathname);
 
   // Listen for URL changes
@@ -72,6 +73,7 @@ function App() {
             <Extra />
             <ContactUs />
             {isLoginOpen && <SignIn />}
+            {isSignupOpen && <SignUp />}
           </>
         )}
       </div>
