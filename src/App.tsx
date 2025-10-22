@@ -3,11 +3,12 @@ import { Hero } from './components/Hero';
 import { Features } from './components/ui/Features';
 import { Extra } from './components/Extra';
 import { ContactUs } from './components/ContactUs';
-import { MultiStepAuthModal } from './components/MultiStepAuthModal';
+import SignIn from './components/SignIn';
 import Dashboard from './components/Dashboard/Dashboard';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { useAuth } from './hooks/useAuth';
 import { useAuthStore } from './store/authStore';
+import { useAuthModalStore } from './store';
 import './index.css';
 import './styles/globals.css';
 import './styles/components.css';
@@ -15,6 +16,7 @@ import './styles/components.css';
 function App() {
   useAuth(); // Initialize authentication
   const { isAuthenticated, isLoading, isInitialized } = useAuthStore();
+  const { isLoginOpen } = useAuthModalStore();
 
   // Show loading screen only if not initialized or still loading
   if (!isInitialized || isLoading) {
@@ -42,7 +44,7 @@ function App() {
             <Features />
             <Extra />
             <ContactUs />
-            <MultiStepAuthModal />
+            {isLoginOpen && <SignIn />}
           </>
         )}
       </div>

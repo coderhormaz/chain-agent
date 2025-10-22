@@ -489,6 +489,12 @@ a:hover {
   outline-offset: 2px;
 }
 
+input:focus-visible,
+input:focus {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
 button:focus-visible,
 a:focus-visible {
   outline: 2px solid var(--primary);
@@ -815,9 +821,31 @@ section > .container > div:first-child p {
 }
 
 /* Button Theme Overrides */
-[data-theme="light"] button,
+[data-theme="light"] button:not(.password-toggle-btn),
 [data-theme="light"] a {
   color: var(--text-primary);
+}
+
+/* Password Toggle Button */
+.password-toggle-btn,
+.password-toggle-btn svg {
+  color: #fff !important;
+  stroke: #fff !important;
+  fill: none !important;
+}
+
+[data-theme="light"] .password-toggle-btn,
+[data-theme="light"] .password-toggle-btn svg {
+  color: #000 !important;
+  stroke: #000 !important;
+  fill: none !important;
+}
+
+[data-theme="dark"] .password-toggle-btn,
+[data-theme="dark"] .password-toggle-btn svg {
+  color: #fff !important;
+  stroke: #fff !important;
+  fill: none !important;
 }
 
 [data-theme="light"] header nav a,
