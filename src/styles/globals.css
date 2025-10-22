@@ -445,6 +445,7 @@ a:hover {
     --text-4xl: 1.75rem;
     --text-3xl: 1.5rem;
     --space-6: 1rem;
+    --header-height: 64px;
   }
   
   .container {
@@ -461,6 +462,12 @@ a:hover {
     --text-5xl: 1.75rem;
     --text-4xl: 1.5rem;
     --text-3xl: 1.25rem;
+    --space-4: 0.875rem;
+    --header-height: 60px;
+  }
+
+  .container {
+    padding: 0 var(--space-3);
   }
 }
 
