@@ -4,7 +4,7 @@ import '../styles/components.css';
 export const Extra: React.FC = () => {
   return (
     <section 
-      id="extra" 
+      id="stats" 
       className="contact-section" 
       style={{ 
         visibility: 'hidden',
