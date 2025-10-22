@@ -66,6 +66,12 @@ export default function SignIn() {
     setPassword('');
   };
 
+  const handleSignUpClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    closeModals();
+    openSignup();
+  };
+
   const handleResetPassword = () => {
     setShowResetModal(true);
   };
