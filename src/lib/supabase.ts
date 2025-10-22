@@ -9,11 +9,64 @@ if (!supabaseUrl || !supabaseAnonKey) {
 
 console.log('🔗 Connecting to Supabase:', supabaseUrl);
 
+// Storage constants
+const STORAGE_KEY = 'opbnb-ai-auth';
+const REMEMBER_ME_KEY = 'opbnb-ai-remember-me';
+
+// Custom storage adapter that can switch between localStorage and sessionStorage
+const createCustomStorage = () => {
+  return {
+    getItem: (key: string) => {
+      // Check if user wants to be remembered (default to sessionStorage if not set)
+      const rememberMeValue = localStorage.getItem(REMEMBER_ME_KEY);
+      const rememberMe = rememberMeValue === 'true';
+      
+      const primaryStorage = rememberMe ? localStorage : sessionStorage;
+      const alternateStorage = rememberMe ? sessionStorage : localStorage;
+      
+      // Try to get from primary storage first
+      let value = primaryStorage.getItem(key);
+      
+      // If not found in primary storage, check alternate storage
+      if (value === null) {
+        value = alternateStorage.getItem(key);
+        
+        // If found in alternate storage, migrate it to primary storage
+        if (value !== null) {
+          try {
+            primaryStorage.setItem(key, value);
+            alternateStorage.removeItem(key);
+          } catch (error) {
+            // If migration fails (e.g., quota exceeded), still return the value
+            console.warn('Failed to migrate session storage:', error);
+          }
+        }
+      }
+      
+      return value;
+    },
+    setItem: (key: string, value: string) => {
+      // Check if user wants to be remembered
+      const rememberMe = localStorage.getItem(REMEMBER_ME_KEY) === 'true';
+      const storage = rememberMe ? localStorage : sessionStorage;
+      storage.setItem(key, value);
+    },
+    removeItem: (key: string) => {
+      // Remove from both storages to ensure cleanup
+      localStorage.removeItem(key);
+      sessionStorage.removeItem(key);
+    }
+  };
+};
+
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: false,
+    // Use custom storage adapter
+    storageKey: STORAGE_KEY,
+    storage: createCustomStorage(),
     // Reduce auth timeout to prevent hanging
     flowType: 'pkce'
   },

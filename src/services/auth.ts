@@ -6,7 +6,7 @@ export class AuthService {
   // Sign up new user and create wallet
   static async signUp(email: string, password: string, name: string) {
     try {
-      console.log('📝 Attempting sign up for:', email, 'with name:', name);
+      console.log('📝 Attempting sign up...');
       
       // Create user account with metadata
       const { data: authData, error: authError } = await supabase.auth.signUp({
@@ -35,7 +35,7 @@ export class AuthService {
       }
 
       if (authData.user) {
-        console.log('✅ User created:', authData.user.email);
+        console.log('✅ User created successfully');
         
         // Generate new wallet
         const wallet = WalletService.generateWallet();
@@ -81,9 +81,14 @@ export class AuthService {
   }
 
   // Sign in existing user and fetch wallet
-  static async signIn(email: string, password: string) {
+  static async signIn(email: string, password: string, rememberMe: boolean = false, signal?: AbortSignal) {
     try {
-      console.log('🔐 Attempting sign in for:', email);
+      console.log('🔐 Attempting login...');
+      
+      // Check if already aborted
+      if (signal?.aborted) {
+        throw new Error('Sign in was cancelled');
+      }
       
       // First, do a quick connection test
       try {
@@ -104,23 +109,21 @@ export class AuthService {
         console.warn('⚠️ Connection test failed, continuing anyway:', testError);
       }
       
-      // Create timeout promise with longer timeout
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Connection timeout - please check your network and try again')), 45000) // 45 seconds
-      );
+      // Check if aborted before making auth request
+      if (signal?.aborted) {
+        throw new Error('Sign in was cancelled');
+      }
 
-      // Sign in user with timeout
-      const authPromise = supabase.auth.signInWithPassword({
+      // Sign in user
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email,
         password
       });
-
-      const authResult = await Promise.race([
-        authPromise,
-        timeoutPromise
-      ]) as Awaited<typeof authPromise>;
       
-      const { data: authData, error: authError } = authResult;
+      // Check if aborted after auth request
+      if (signal?.aborted) {
+        throw new Error('Sign in was cancelled');
+      }
 
       if (authError) {
         console.error('🚫 Authentication error:', authError);
@@ -138,7 +141,11 @@ export class AuthService {
       }
 
       if (authData.user) {
-        console.log('✅ User authenticated:', authData.user.email);
+        console.log('✅ User authenticated successfully');
+        
+        // Store remember me preference only after successful authentication
+        // This ensures the custom storage adapter uses the correct storage type
+        localStorage.setItem('opbnb-ai-remember-me', rememberMe.toString());
         
         // Fetch user's wallet with timeout
         const walletPromise = this.getUserWallet(authData.user.id);
@@ -202,6 +209,9 @@ export class AuthService {
     try {
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
+      
+      // Clear remember me preference on sign out
+      localStorage.removeItem('opbnb-ai-remember-me');
     } catch (error) {
       console.error('Sign out error:', error);
       throw error;

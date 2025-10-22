@@ -10,7 +10,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { EyeIcon, EyeOffIcon } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import type { JSX, SVGProps } from "react";
 import { AuthService } from '../services/auth';
 import { useWalletStore, useAuthModalStore } from '../store';
@@ -48,7 +48,12 @@ export default function SignIn() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const { setUser, setWallet, setLoading } = useWalletStore();
-  const { closeModals } = useAuthModalStore();
+  const { closeModals, openSignup } = useAuthModalStore();
+
+  // Refs for accessibility
+  const modalRef = useRef<HTMLDivElement>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
+  const emailInputRef = useRef<HTMLInputElement>(null);
 
   const togglePasswordVisibility = () => setIsPasswordVisible((prev) => !prev);
 
@@ -59,6 +64,74 @@ export default function SignIn() {
     setPassword('');
   };
 
+  const handleResetPassword = () => {
+    // TODO: Implement password reset flow
+    // For now, we'll show an alert, but this should open a password reset modal
+    alert('Password reset functionality will be implemented soon. Please contact support.');
+  };
+
+  const handleSignUp = () => {
+    openSignup();
+  };
+
+  // Focus management and accessibility
+  useEffect(() => {
+    // Save the previously focused element
+    previousFocusRef.current = document.activeElement as HTMLElement;
+
+    // Set initial focus to the email input
+    emailInputRef.current?.focus();
+
+    // Handle Escape key
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        handleClose();
+      }
+    };
+
+    // Focus trap implementation
+    const handleTab = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab' || !modalRef.current) return;
+
+      const focusableElements = modalRef.current.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])'
+      );
+
+      const firstElement = focusableElements[0];
+      const lastElement = focusableElements[focusableElements.length - 1];
+
+      if (e.shiftKey) {
+        // Shift + Tab
+        if (document.activeElement === firstElement) {
+          lastElement?.focus();
+          e.preventDefault();
+        }
+      } else {
+        // Tab
+        if (document.activeElement === lastElement) {
+          firstElement?.focus();
+          e.preventDefault();
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleEscape);
+    document.addEventListener('keydown', handleTab);
+
+    // Prevent background scroll
+    document.body.style.overflow = 'hidden';
+
+    // Cleanup
+    return () => {
+      document.removeEventListener('keydown', handleEscape);
+      document.removeEventListener('keydown', handleTab);
+      document.body.style.overflow = '';
+      
+      // Restore focus to previously focused element
+      previousFocusRef.current?.focus();
+    };
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isSubmitting) return;
@@ -67,32 +140,47 @@ export default function SignIn() {
     setIsSubmitting(true);
     setLoading(true);
 
+    // Create AbortController for proper cancellation
+    const controller = new AbortController();
+    let timeoutId: NodeJS.Timeout | null = null;
+
     try {
-      console.log('🔐 Attempting login for:', email);
+      console.log('🔐 Attempting login...');
       
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Connection timeout - please try again')), 60000)
-      );
+      // Set up timeout that aborts the request
+      timeoutId = setTimeout(() => {
+        controller.abort();
+      }, 15000); // 15 seconds
 
-      const loginPromise = AuthService.signIn(email, password);
-
-      const result = await Promise.race([
-        loginPromise,
-        timeoutPromise
-      ]) as Awaited<typeof loginPromise>;
+      // Await sign in directly with abort signal
+      const result = await AuthService.signIn(email, password, rememberMe, controller.signal);
+      
+      // Clear timeout on success
+      if (timeoutId) clearTimeout(timeoutId);
       
       const { user, wallet } = result;
       
-      console.log('✅ Login successful:', user.email);
+      console.log('✅ Login successful');
       setUser(user);
       setWallet(wallet as UserWallet | null);
       
       // Clear form and close modal
       handleClose();
     } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to sign in. Please check your credentials and try again.';
+      // Clear timeout on error
+      if (timeoutId) clearTimeout(timeoutId);
+      
+      // Handle abort/timeout separately
+      if (error instanceof Error) {
+        if (error.name === 'AbortError' || error.message.includes('cancelled')) {
+          setError('Connection timeout - please try again');
+        } else {
+          setError(error.message);
+        }
+      } else {
+        setError('Failed to sign in. Please check your credentials and try again.');
+      }
       console.error('❌ Login failed:', error);
-      setError(errorMessage);
     } finally {
       setIsSubmitting(false);
       setLoading(false);
@@ -101,6 +189,10 @@ export default function SignIn() {
 
   return (
     <div 
+      ref={modalRef}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="signin-title"
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
       onClick={handleClose}
     >
@@ -121,7 +213,7 @@ export default function SignIn() {
             <Logo />
           </div>
           <div>
-            <h2 className="text-2xl font-semibold" style={{ color: '#4ade80' }}>Sign in to opBNB AI</h2>
+            <h2 id="signin-title" className="text-2xl font-semibold" style={{ color: '#4ade80' }}>Sign in to opBNB AI</h2>
             <p className="text-muted-foreground text-sm">
               Welcome back! Please enter your details.
             </p>
@@ -132,6 +224,7 @@ export default function SignIn() {
             <div className="space-y-2">
               <Label htmlFor="email" style={{ color: '#4ade80' }}>Email address</Label>
               <Input 
+                ref={emailInputRef}
                 id="email" 
                 type="email" 
                 placeholder="your@email.com"
@@ -143,9 +236,13 @@ export default function SignIn() {
             <div className="space-y-0">
               <div className="flex items-center justify-between mb-2">
                 <Label htmlFor="password" style={{ color: '#4ade80' }}>Password</Label>
-                <a href="#" className="text-sm hover:underline text-white dark:text-white">
+                <button
+                  type="button"
+                  onClick={handleResetPassword}
+                  className="text-sm hover:underline text-white dark:text-white focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 rounded"
+                >
                   Reset password
-                </a>
+                </button>
               </div>
               <div className="relative">
                 <Input
@@ -218,9 +315,14 @@ export default function SignIn() {
         <CardFooter className="flex justify-center !py-4">
           <p className="text-center text-sm text-muted-foreground">
             New to opBNB AI?{" "}
-            <a href="#" className="hover:underline" style={{ color: '#4ade80' }}>
+            <button
+              type="button"
+              onClick={handleSignUp}
+              className="hover:underline focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 rounded"
+              style={{ color: '#4ade80' }}
+            >
               Sign up
-            </a>
+            </button>
           </p>
         </CardFooter>
       </Card>
