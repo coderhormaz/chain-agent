@@ -13,15 +13,58 @@ export function ContactUs() {
 		phone: '',
 		message: ''
 	});
+	const [isSubmitting, setIsSubmitting] = useState(false);
+	const [submitStatus, setSubmitStatus] = useState<{ type: 'success' | 'error' | null; message: string }>({
+		type: null,
+		message: ''
+	});
 
-	const handleSubmit = (e: React.FormEvent) => {
+	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
-		// Handle form submission here
-		console.log('Form submitted:', formData);
-		// You can add your form submission logic here (e.g., send to API, Supabase, etc.)
-		alert('Thank you for your message! We will get back to you soon.');
-		// Reset form
-		setFormData({ name: '', email: '', phone: '', message: '' });
+		setIsSubmitting(true);
+		setSubmitStatus({ type: null, message: '' });
+
+		try {
+			const response = await fetch('https://api.web3forms.com/submit', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+					'Accept': 'application/json'
+				},
+				body: JSON.stringify({
+					access_key: '33ab3791-cf6f-4323-a696-248ff05e7c08',
+					name: formData.name,
+					email: formData.email,
+					phone: formData.phone,
+					message: formData.message,
+					subject: 'New Contact Form Submission from opBNB AI Assistant'
+				})
+			});
+
+			const result = await response.json();
+
+			if (result.success) {
+				setSubmitStatus({
+					type: 'success',
+					message: 'Thank you for your message! We will get back to you soon.'
+				});
+				// Reset form
+				setFormData({ name: '', email: '', phone: '', message: '' });
+			} else {
+				setSubmitStatus({
+					type: 'error',
+					message: 'Something went wrong. Please try again or contact us directly at support@opbnb-ai.com'
+				});
+			}
+		} catch (error) {
+			console.error('Form submission error:', error);
+			setSubmitStatus({
+				type: 'error',
+				message: 'Something went wrong. Please try again or contact us directly at support@opbnb-ai.com'
+			});
+		} finally {
+			setIsSubmitting(false);
+		}
 	};
 
 	const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -57,6 +100,17 @@ export function ContactUs() {
 					]}
 				>
 					<form onSubmit={handleSubmit} className="w-full space-y-4">
+						{submitStatus.type && (
+							<div 
+								className={`p-4 rounded-lg border ${
+									submitStatus.type === 'success' 
+										? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 text-green-800 dark:text-green-200' 
+										: 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-800 dark:text-red-200'
+								}`}
+							>
+								{submitStatus.message}
+							</div>
+						)}
 						<div className="flex flex-col gap-2">
 							<Label htmlFor="name">Name</Label>
 							<Input 
@@ -103,8 +157,8 @@ export function ContactUs() {
 								required
 							/>
 						</div>
-						<Button className="w-full" type="submit">
-							Send Message
+						<Button className="w-full" type="submit" disabled={isSubmitting}>
+							{isSubmitting ? 'Sending...' : 'Send Message'}
 						</Button>
 					</form>
 				</ContactCard>
