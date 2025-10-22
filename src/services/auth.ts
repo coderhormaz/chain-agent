@@ -218,6 +218,37 @@ export class AuthService {
     }
   }
 
+  // Reset password - send reset email
+  static async resetPassword(email: string) {
+    try {
+      console.log('🔐 Sending password reset email...');
+      
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+
+      if (error) {
+        console.error('🚫 Password reset error:', error);
+        
+        // Provide better error messages
+        if (error.message.includes('Invalid email')) {
+          throw new Error('Please enter a valid email address.');
+        } else if (error.message.includes('Email not found')) {
+          // For security, don't reveal if email exists or not
+          throw new Error('If an account exists with this email, you will receive a password reset link.');
+        } else {
+          throw new Error(error.message || 'Failed to send password reset email.');
+        }
+      }
+
+      console.log('✅ Password reset email sent');
+      return { success: true };
+    } catch (error) {
+      console.error('❌ Password reset error:', error);
+      throw error;
+    }
+  }
+
   // Get current session
   static async getCurrentSession() {
     try {

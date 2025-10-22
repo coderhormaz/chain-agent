@@ -16,6 +16,7 @@ import { AuthService } from '../services/auth';
 import { useWalletStore, useAuthModalStore } from '../store';
 import type { UserWallet } from '../lib/supabase';
 import { X } from 'lucide-react';
+import PasswordResetModal from './PasswordResetModal';
 
 const Logo = (props: JSX.IntrinsicAttributes & SVGProps<SVGSVGElement>) => (
   <svg
@@ -46,6 +47,7 @@ export default function SignIn() {
   const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showResetModal, setShowResetModal] = useState(false);
 
   const { setUser, setWallet, setLoading } = useWalletStore();
   const { closeModals, openSignup } = useAuthModalStore();
@@ -65,9 +67,7 @@ export default function SignIn() {
   };
 
   const handleResetPassword = () => {
-    // TODO: Implement password reset flow
-    // For now, we'll show an alert, but this should open a password reset modal
-    alert('Password reset functionality will be implemented soon. Please contact support.');
+    setShowResetModal(true);
   };
 
   const handleSignUp = () => {
@@ -326,6 +326,11 @@ export default function SignIn() {
           </p>
         </CardFooter>
       </Card>
+      
+      {/* Password Reset Modal */}
+      {showResetModal && (
+        <PasswordResetModal onClose={() => setShowResetModal(false)} />
+      )}
     </div>
   );
 }
