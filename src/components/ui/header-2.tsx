@@ -16,6 +16,10 @@ export function Header() {
 
 	const links = [
 		{
+			label: 'Home',
+			href: '#hero',
+		},
+		{
 			label: 'Features',
 			href: '#features',
 		},
@@ -28,6 +32,15 @@ export function Header() {
 			href: '#contact',
 		},
 	];
+
+	const handleNavClick = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
+		e.preventDefault();
+		const element = document.querySelector(href);
+		if (element) {
+			element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+			setOpen(false);
+		}
+	};
 
 	React.useEffect(() => {
 		if (open) {
@@ -79,7 +92,12 @@ export function Header() {
 				<WordmarkIcon className="h-4 gradient-text-green" />
 				<div className="hidden items-center gap-2 md:flex">
 					{links.map((link, i) => (
-						<a key={i} className={buttonVariants({ variant: 'ghost' })} href={link.href}>
+						<a 
+							key={i} 
+							className={buttonVariants({ variant: 'ghost' })} 
+							href={link.href}
+							onClick={(e) => handleNavClick(e, link.href)}
+						>
 							{link.label}
 						</a>
 					))}
@@ -128,7 +146,7 @@ export function Header() {
 									className: 'justify-start',
 								})}
 								href={link.href}
-								onClick={() => setOpen(false)}
+								onClick={(e) => handleNavClick(e, link.href)}
 							>
 								{link.label}
 							</a>

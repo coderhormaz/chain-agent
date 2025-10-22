@@ -7,6 +7,7 @@ export function Features() {
 
     return (
         <section 
+            id="features"
             className={`py-16 md:py-24 relative overflow-hidden transition-colors duration-300 ${
                 isDark ? 'bg-[#0f0f1e]' : 'bg-white'
             }`}
