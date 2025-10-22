@@ -1083,30 +1083,117 @@ button[size="icon"] {
 /* Responsive Hero */
 @media (max-width: 768px) {
   .hero {
-    padding: calc(var(--header-height) + var(--space-16)) 0 var(--space-16);
+    padding: 0;
     min-height: 100vh;
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .hero-content {
+    padding: var(--space-6) var(--space-4);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
   }
 
   .premium-title {
-    font-size: clamp(2rem, 6vw, 3rem);
+    font-size: clamp(1.75rem, 8vw, 2.5rem);
+    line-height: 1.15;
+    margin-bottom: var(--space-4);
+  }
+
+  .premium-title br:not(.mobile-break) {
+    display: none;
+  }
+  
+  .mobile-break {
+    display: inline;
   }
 
   .premium-subtitle {
-    font-size: var(--text-base);
+    font-size: clamp(0.9rem, 3.5vw, 1rem);
+    line-height: 1.5;
+    margin-top: var(--space-3);
+    margin-bottom: 0;
+    padding: 0 var(--space-2);
+  }
+
+  .premium-subtitle br {
+    display: none;
   }
 
   .premium-actions {
     flex-direction: column;
     width: 100%;
+    gap: var(--space-3);
+    margin-top: var(--space-6);
+    margin-bottom: 0;
   }
 
-  .premium-actions .btn {
+  .premium-actions .btn,
+  .btn-hero-primary,
+  .btn-hero-secondary {
     width: 100%;
-    max-width: 300px;
+    max-width: 100%;
+    padding: 12px 20px;
+    font-size: 0.95rem;
+    justify-content: center;
   }
 
   .hero-trust-indicators {
-    gap: var(--space-6);
+    display: none;
+  }
+
+  .gradient-text-green {
+    display: inline;
+  }
+}
+
+@media (max-width: 480px) {
+  .hero {
+    padding: 0;
+    min-height: 100vh;
+    height: 100vh;
+  }
+
+  .hero-content {
+    padding: var(--space-4) var(--space-3);
+  }
+
+  .premium-title {
+    font-size: clamp(1.5rem, 7vw, 2rem);
+    margin-bottom: var(--space-3);
+  }
+
+  .premium-subtitle {
+    font-size: 0.875rem;
+    margin-top: var(--space-2);
+    padding: 0;
+  }
+
+  .premium-actions {
+    margin-top: var(--space-5);
+    gap: var(--space-2);
+  }
+
+  .btn-hero-primary,
+  .btn-hero-secondary {
+    padding: 11px 18px;
+    font-size: 0.9rem;
+  }
+
+  .btn-hero-primary svg,
+  .btn-hero-secondary svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  .hero-trust-indicators {
+    display: none;
   }
 }
 
@@ -2045,7 +2132,7 @@ button[size="icon"] {
   }
   
   .navbar-content {
-    padding: 0 var(--space-4);
+    padding: 1rem var(--space-4);
   }
   
   .hero {
@@ -2064,6 +2151,8 @@ button[size="icon"] {
   
   .modal-content {
     padding: var(--space-6);
+    max-width: 95vw;
+    margin: var(--space-4);
   }
   
   .modal-footer {
