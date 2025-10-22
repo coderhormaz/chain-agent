@@ -30,6 +30,9 @@ export interface StaggeredMenuProps {
   onMenuClose?: () => void;
   isFixed?: boolean;
   logoComponent?: React.ReactNode;
+  externalOpen?: boolean;
+  onItemClick?: (href: string) => void;
+  extraHeaderContent?: React.ReactNode;
 }
 
 export const StaggeredMenu: React.FC<StaggeredMenuProps> = ({
@@ -47,6 +50,9 @@ export const StaggeredMenu: React.FC<StaggeredMenuProps> = ({
   accentColor = '#5227FF',
   isFixed = false,
   logoComponent,
+  externalOpen,
+  onItemClick,
+  extraHeaderContent,
   onMenuOpen,
   onMenuClose
 }: StaggeredMenuProps) => {
@@ -348,6 +354,35 @@ export const StaggeredMenu: React.FC<StaggeredMenuProps> = ({
     animateText(target);
   }, [playOpen, playClose, animateIcon, animateColor, animateText, onMenuOpen, onMenuClose]);
 
+  // Handle menu item clicks
+  const handleItemClick = useCallback((e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
+    e.preventDefault();
+    
+    // Close the menu
+    if (openRef.current) {
+      openRef.current = false;
+      setOpen(false);
+      onMenuClose?.();
+      playClose();
+      animateIcon(false);
+      animateColor(false);
+      animateText(false);
+    }
+
+    // Notify parent and navigate after a small delay
+    setTimeout(() => {
+      onItemClick?.(href);
+      
+      // Default navigation if no handler provided
+      if (!onItemClick) {
+        const element = document.querySelector(href);
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }
+    }, 100);
+  }, [playClose, animateIcon, animateColor, animateText, onMenuClose, onItemClick]);
+
   return (
     <div
       className={(className ? className + ' ' : '') + 'staggered-menu-wrapper' + (isFixed ? ' fixed-wrapper' : '')}
@@ -381,29 +416,32 @@ export const StaggeredMenu: React.FC<StaggeredMenuProps> = ({
             />
           ) : null}
         </div>
-        <button
-          ref={toggleBtnRef}
-          className="sm-toggle"
-          aria-label={open ? 'Close menu' : 'Open menu'}
-          aria-expanded={open}
-          aria-controls="staggered-menu-panel"
-          onClick={toggleMenu}
-          type="button"
-        >
-          <span ref={textWrapRef} className="sm-toggle-textWrap" aria-hidden="true">
-            <span ref={textInnerRef} className="sm-toggle-textInner">
-              {textLines.map((l, i) => (
-                <span className="sm-toggle-line" key={i}>
-                  {l}
-                </span>
-              ))}
+        <div className="flex items-center gap-3">
+          {extraHeaderContent}
+          <button
+            ref={toggleBtnRef}
+            className="sm-toggle"
+            aria-label={open ? 'Close menu' : 'Open menu'}
+            aria-expanded={open}
+            aria-controls="staggered-menu-panel"
+            onClick={toggleMenu}
+            type="button"
+          >
+            <span ref={textWrapRef} className="sm-toggle-textWrap" aria-hidden="true">
+              <span ref={textInnerRef} className="sm-toggle-textInner">
+                {textLines.map((l, i) => (
+                  <span className="sm-toggle-line" key={i}>
+                    {l}
+                  </span>
+                ))}
+              </span>
             </span>
-          </span>
-          <span ref={iconRef} className="sm-icon" aria-hidden="true">
-            <span ref={plusHRef} className="sm-icon-line" />
-            <span ref={plusVRef} className="sm-icon-line sm-icon-line-v" />
-          </span>
-        </button>
+            <span ref={iconRef} className="sm-icon" aria-hidden="true">
+              <span ref={plusHRef} className="sm-icon-line" />
+              <span ref={plusVRef} className="sm-icon-line sm-icon-line-v" />
+            </span>
+          </button>
+        </div>
       </header>
 
       <aside id="staggered-menu-panel" ref={panelRef} className="staggered-menu-panel" aria-hidden={!open}>
@@ -412,7 +450,13 @@ export const StaggeredMenu: React.FC<StaggeredMenuProps> = ({
             {items && items.length ? (
               items.map((it, idx) => (
                 <li className="sm-panel-itemWrap" key={it.label + idx}>
-                  <a className="sm-panel-item" href={it.link} aria-label={it.ariaLabel} data-index={idx + 1}>
+                  <a 
+                    className="sm-panel-item" 
+                    href={it.link} 
+                    aria-label={it.ariaLabel} 
+                    data-index={idx + 1}
+                    onClick={(e) => handleItemClick(e, it.link)}
+                  >
                     <span className="sm-panel-itemLabel">{it.label}</span>
                   </a>
                 </li>
