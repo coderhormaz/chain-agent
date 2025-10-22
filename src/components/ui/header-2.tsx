@@ -2,11 +2,12 @@
 import React from 'react';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { MenuToggleIcon } from '@/components/ui/menu-toggle-icon';
 import { useScroll } from '@/components/ui/use-scroll';
 import { useAuthModalStore } from '../../store/index';
 import { ThemeToggle } from '../ThemeToggle';
 import { useTheme } from '../../contexts/ThemeContext';
+import StaggeredMenu from '@/components/ui/StaggeredMenu';
+import type { StaggeredMenuItem } from '@/components/ui/StaggeredMenu';
 
 export function Header() {
 	const [open, setOpen] = React.useState(false);
@@ -42,6 +43,20 @@ export function Header() {
 		}
 	};
 
+	// Menu items for StaggeredMenu
+	const menuItems: StaggeredMenuItem[] = links.map(link => ({
+		label: link.label,
+		ariaLabel: `Navigate to ${link.label}`,
+		link: link.href,
+	}));
+
+	// Add auth buttons to menu items
+	const authMenuItems: StaggeredMenuItem[] = [
+		...menuItems,
+		{ label: 'Sign In', ariaLabel: 'Sign in to your account', link: '#signin' },
+		{ label: 'Get Started', ariaLabel: 'Get started with opBNB', link: '#signup' },
+	];
+
 	React.useEffect(() => {
 		if (open) {
 			// Disable scroll
@@ -57,110 +72,120 @@ export function Header() {
 		};
 	}, [open]);
 
+	// Handle menu item clicks for StaggeredMenu
+	const handleMenuItemClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+		e.preventDefault();
+		const href = e.currentTarget.getAttribute('href');
+		if (!href) return;
+
+		// Handle special auth links
+		if (href === '#signin') {
+			openLogin();
+			return;
+		}
+		if (href === '#signup') {
+			openSignup();
+			return;
+		}
+
+		// Handle regular navigation
+		const element = document.querySelector(href);
+		if (element) {
+			element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+		}
+	};
+
+	// Add click handlers to menu items
+	React.useEffect(() => {
+		const menuLinks = document.querySelectorAll('.sm-panel-item');
+		menuLinks.forEach(link => {
+			link.addEventListener('click', handleMenuItemClick as any);
+		});
+
+		return () => {
+			menuLinks.forEach(link => {
+				link.removeEventListener('click', handleMenuItemClick as any);
+			});
+		};
+	}, []);
+
 	return (
-		<header
-			className={cn(
-				'sticky top-0 z-50 mx-auto w-full max-w-6xl border-b border-transparent md:rounded-md md:border md:transition-all md:ease-out header-glass',
-				{
-					'header-scrolled md:top-4 md:max-w-5xl md:shadow-lg':
-						scrolled && !open,
-				},
-			)}
-			style={
-				scrolled && !open
-					? {
-							backgroundColor: 'rgba(255, 255, 255, 0.6)',
-							borderColor: 'var(--border-medium)',
-							backdropFilter: 'blur(20px)',
-					  }
-					: open
-					? {
-							backgroundColor: 'rgba(255, 255, 255, 0.9)',
-							backdropFilter: 'blur(20px)',
-					  }
-					: undefined
-			}
-		>
-			<nav
+		<>
+			{/* Mobile-only StaggeredMenu */}
+			<StaggeredMenu
+				position="right"
+				items={authMenuItems}
+				displaySocials={false}
+				displayItemNumbering={true}
+				menuButtonColor={theme === 'light' ? '#000' : '#fff'}
+				openMenuButtonColor={theme === 'light' ? '#000' : '#fff'}
+				changeMenuColorOnOpen={false}
+				colors={['#B19EEF', '#5227FF']}
+				logoComponent={<WordmarkIcon className="h-4 gradient-text-green" />}
+				accentColor="#10b981"
+				isFixed={true}
+			/>
+
+			{/* Desktop header */}
+			<header
 				className={cn(
-					'flex h-14 w-full items-center justify-between px-5 md:h-12 md:transition-all md:ease-out',
+					'sticky top-0 z-50 mx-auto w-full max-w-6xl border-b border-transparent md:rounded-md md:border md:transition-all md:ease-out header-glass',
 					{
-						'md:px-3': scrolled,
+						'header-scrolled md:top-4 md:max-w-5xl md:shadow-lg':
+							scrolled && !open,
 					},
 				)}
+				style={
+					scrolled && !open
+						? {
+								backgroundColor: 'rgba(255, 255, 255, 0.6)',
+								borderColor: 'var(--border-medium)',
+								backdropFilter: 'blur(20px)',
+						  }
+						: open
+						? {
+								backgroundColor: 'rgba(255, 255, 255, 0.9)',
+								backdropFilter: 'blur(20px)',
+						  }
+						: undefined
+				}
 			>
-				<WordmarkIcon className="h-4 gradient-text-green" />
-				<div className="hidden items-center gap-2 md:flex">
-					{links.map((link, i) => (
-						<a 
-							key={i} 
-							className={buttonVariants({ variant: 'ghost' })} 
-							href={link.href}
-							onClick={(e) => handleNavClick(e, link.href)}
-						>
-							{link.label}
-						</a>
-					))}
-					<ThemeToggle />
-					<Button variant="outline" onClick={openLogin}>Sign In</Button>
-					<Button 
-						onClick={openSignup}
-						style={{
-							backgroundColor: theme === 'light' ? '#000 !important' : '#fff !important',
-							color: theme === 'light' ? '#fff !important' : '#000 !important',
-						} as React.CSSProperties}
-						className="get-started-btn"
-					>
-						Get Started
-					</Button>
-				</div>
-				<Button size="icon" variant="outline" onClick={() => setOpen(!open)} className="md:hidden">
-					<MenuToggleIcon open={open} className="size-5" duration={300} />
-				</Button>
-			</nav>
-
-			<div
-				className={cn(
-					'fixed top-14 right-0 bottom-0 left-0 z-50 flex flex-col overflow-hidden border-y md:hidden',
-					open ? 'block' : 'hidden',
-				)}
-				style={{
-					backgroundColor: 'rgba(255, 255, 255, 0.9)',
-					borderColor: 'var(--border-medium)',
-					backdropFilter: 'blur(20px)',
-				}}
-			>
-				<div
-					data-slot={open ? 'open' : 'closed'}
+				<nav
 					className={cn(
-						'data-[slot=open]:animate-in data-[slot=open]:zoom-in-95 data-[slot=closed]:animate-out data-[slot=closed]:zoom-out-95 ease-out',
-						'flex h-full w-full flex-col justify-between gap-y-2 p-4',
+						'flex h-14 w-full items-center justify-between px-5 md:h-12 md:transition-all md:ease-out',
+						{
+							'md:px-3': scrolled,
+						},
 					)}
 				>
-					<div className="grid gap-y-2">
-						{links.map((link) => (
-							<a
-								key={link.label}
-								className={buttonVariants({
-									variant: 'ghost',
-									className: 'justify-start',
-								})}
+					<WordmarkIcon className="h-4 gradient-text-green md:block hidden" />
+					<div className="hidden items-center gap-2 md:flex">
+						{links.map((link, i) => (
+							<a 
+								key={i} 
+								className={buttonVariants({ variant: 'ghost' })} 
 								href={link.href}
 								onClick={(e) => handleNavClick(e, link.href)}
 							>
 								{link.label}
 							</a>
 						))}
-					</div>
-					<div className="flex flex-col gap-2">
-						<Button variant="outline" className="w-full !text-black dark:!text-white" onClick={openLogin}>
-							Sign In
+						<ThemeToggle />
+						<Button variant="outline" onClick={openLogin}>Sign In</Button>
+						<Button 
+							onClick={openSignup}
+							style={{
+								backgroundColor: theme === 'light' ? '#000 !important' : '#fff !important',
+								color: theme === 'light' ? '#fff !important' : '#000 !important',
+							} as React.CSSProperties}
+							className="get-started-btn"
+						>
+							Get Started
 						</Button>
-						<Button className="w-full !text-black dark:!text-white" onClick={openSignup}>Get Started</Button>
 					</div>
-				</div>
-			</div>
-		</header>
+				</nav>
+			</header>
+		</>
 	);
 }
 

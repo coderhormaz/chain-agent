@@ -121,12 +121,12 @@ const GridItem = ({ area, icon, title, description, isDark }: GridItemProps) => 
               )}>
                 {title}
               </h3>
-              <p className={cn(
+              <div className={cn(
                 "font-sans text-sm leading-[1.125rem] md:text-base md:leading-[1.375rem] transition-colors duration-300",
                 isDark ? "text-gray-300" : "text-gray-600"
               )}>
                 {description}
-              </p>
+              </div>
             </div>
           </div>
         </div>
