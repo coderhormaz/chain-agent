@@ -171,8 +171,15 @@ const Wallet: React.FC = () => {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3 }}
         >
-          <h3>
-            Wallet Balance 
+          <h3 style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'space-between',
+            marginBottom: 'var(--space-4)',
+            flexWrap: 'wrap',
+            gap: 'var(--space-3)'
+          }}>
+            <span style={{ fontSize: 'var(--text-xl)', fontWeight: '600' }}>Wallet Balance</span>
             {bnbPrice && (
               <span className="bnb-price-indicator">
                 {bnbPrice.change24h >= 0 ? <IoTrendingUp /> : <IoTrendingDown />} ${bnbPrice.price.toLocaleString('en-US', { 
@@ -189,8 +196,17 @@ const Wallet: React.FC = () => {
               <span>{balance} BNB</span>
             )}
           </div>
-          <p className="balance-usd">
-            {isLoadingPrice ? 'Loading price...' : balanceUSD}
+          <p className="balance-usd" style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: 'var(--space-3)',
+            marginTop: 'var(--space-3)'
+          }}>
+            <span style={{ fontSize: 'var(--text-lg)', fontWeight: '600' }}>
+              {isLoadingPrice ? 'Loading price...' : balanceUSD}
+            </span>
             {bnbPrice && (
               <span className={`price-change ${bnbPrice.change24h >= 0 ? 'positive' : 'negative'}`}>
                 {bnbPrice.change24h >= 0 ? ' (+' : ' ('}
