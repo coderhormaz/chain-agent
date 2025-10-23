@@ -1329,16 +1329,16 @@
 .balance-amount {
   font-size: var(--text-5xl);
   font-weight: 700;
-  background: linear-gradient(135deg, #1e40af 0%, #0891b2 50%, #7c3aed 100%);
+  background: linear-gradient(135deg, #10b981 0%, #059669 50%, #047857 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
   margin-bottom: var(--space-2);
   line-height: 1;
-  animation: fadeIn 0.5s ease-out, premiumGlow 4s ease-in-out infinite alternate;
+  animation: fadeIn 0.5s ease-out;
   position: relative;
   transition: all var(--transition-smooth);
-  text-shadow: 0 2px 4px rgba(30, 64, 175, 0.1);
+  text-shadow: 0 2px 4px rgba(16, 185, 129, 0.1);
 }
 
 .balance-amount:hover {
