@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { ParticleBackground } from './ParticleBackground';
 import { useAuthModalStore } from '../store';
 import ShinyText from './ShinyText';
+import { SparklesCore } from './ui/sparkles';
 
 export const Hero: React.FC = () => {
   const { openLogin } = useAuthModalStore();
@@ -63,11 +64,7 @@ export const Hero: React.FC = () => {
       <motion.span
         key={`${word}-${index}`}
         variants={wordVariants}
-        style={{ 
-          display: 'inline-block', 
-          marginRight: '0.3em',
-          position: 'relative'
-        }}
+        style={{ display: 'inline-block', marginRight: '0.3em' }}
         className={className}
       >
         {word}
@@ -78,6 +75,20 @@ export const Hero: React.FC = () => {
   return (
     <section id="hero" className="hero premium-hero">
       <ParticleBackground />
+      
+      {/* Sparkles Background Layer */}
+      <div className="absolute inset-0 w-full h-full">
+        <SparklesCore
+          id="tsparticleshero"
+          background="transparent"
+          minSize={0.4}
+          maxSize={1.2}
+          particleDensity={80}
+          className="w-full h-full"
+          particleColor="#10b981"
+          speed={0.5}
+        />
+      </div>
       
       <div className="hero-gradient-overlay"></div>
       
@@ -93,53 +104,8 @@ export const Hero: React.FC = () => {
             variants={titleVariants}
             initial="hidden"
             animate="visible"
-            style={{ 
-              display: 'flex', 
-              flexWrap: 'wrap', 
-              justifyContent: 'center',
-              position: 'relative'
-            }}
+            style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center' }}
           >
-            <motion.div
-              style={{
-                position: 'absolute',
-                bottom: '-10px',
-                left: '50%',
-                transform: 'translateX(-50%)',
-                height: '3px',
-                background: 'linear-gradient(90deg, transparent, #10b981, transparent)',
-                width: '0%',
-              }}
-              animate={{
-                width: ['0%', '100%'],
-              }}
-              transition={{
-                duration: 2,
-                delay: 2.5,
-                ease: "easeInOut",
-              }}
-            >
-              <motion.div
-                style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  height: '100%',
-                  width: '30%',
-                  background: 'linear-gradient(90deg, transparent, rgba(16, 185, 129, 0.8), transparent)',
-                  filter: 'blur(8px)',
-                }}
-                animate={{
-                  left: ['-30%', '100%', '-30%'],
-                }}
-                transition={{
-                  duration: 5,
-                  delay: 4.5,
-                  repeat: Infinity,
-                  ease: "easeInOut",
-                }}
-              />
-            </motion.div>
             <span style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', width: '100%' }}>
               {renderAnimatedWords('Build on')}
               {renderAnimatedWords('blockchain', 'gradient-text-green')}
