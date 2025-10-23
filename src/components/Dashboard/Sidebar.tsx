@@ -81,17 +81,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => {
           transition={{ type: "spring", stiffness: 400, damping: 17 }}
           title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
         >
-          {theme === 'dark' ? (
-            <>
-              <IoSunny size={18} />
-              <span>Light Mode</span>
-            </>
-          ) : (
-            <>
-              <IoMoon size={18} />
-              <span>Dark Mode</span>
-            </>
-          )}
+          {theme === 'dark' ? <IoSunny size={20} /> : <IoMoon size={20} />}
         </motion.button>
         
         <motion.button
