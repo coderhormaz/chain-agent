@@ -30,7 +30,6 @@ export interface StaggeredMenuProps {
   onMenuClose?: () => void;
   isFixed?: boolean;
   logoComponent?: React.ReactNode;
-  externalOpen?: boolean;
   onItemClick?: (href: string) => void;
   extraHeaderContent?: React.ReactNode;
 }
@@ -50,7 +49,6 @@ export const StaggeredMenu: React.FC<StaggeredMenuProps> = ({
   accentColor = '#5227FF',
   isFixed = false,
   logoComponent,
-  externalOpen,
   onItemClick,
   extraHeaderContent,
   onMenuOpen,

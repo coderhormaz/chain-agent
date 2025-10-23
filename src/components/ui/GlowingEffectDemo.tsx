@@ -1,4 +1,4 @@
-import { Zap, Cpu, Fingerprint, Pencil, Settings2, Sparkles } from "lucide-react";
+import { Zap, Cpu, Fingerprint, Pencil, Settings2 } from "lucide-react";
 import { GlowingEffect } from "@/components/ui/glowing-effect";
 import { cn } from "@/lib/utils";
 import { useTheme } from "@/contexts/ThemeContext";
