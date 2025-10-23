@@ -5,6 +5,7 @@ import { Button } from './ui/button';
 import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
 import { useState } from 'react';
+import ShinyText from './ShinyText';
 
 export function ContactUs() {
 	const [formData, setFormData] = useState({
@@ -79,7 +80,13 @@ export function ContactUs() {
 			<div className="mx-auto max-w-6xl">
 				<ContactCard
 					title="Get in Touch"
-					description="Have questions about our opBNB AI Assistant? Need help with blockchain integration? Fill out the form and we'll respond within 1 business day."
+					description={
+						<>
+							<ShinyText text="Have questions about our opBNB AI Assistant? Need help with blockchain integration?" speed={6} />
+							{" "}
+							<ShinyText text="Fill out the form and we'll respond within 1 business day." speed={6} />
+						</>
+					}
 					contactInfo={[
 						{
 							icon: MailIcon,

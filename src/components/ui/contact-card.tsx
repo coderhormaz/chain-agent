@@ -12,7 +12,7 @@ type ContactInfoProps = React.ComponentProps<'div'> & {
 type ContactCardProps = React.ComponentProps<'div'> & {
 	// Content props
 	title?: string;
-	description?: string;
+	description?: string | React.ReactNode;
 	contactInfo?: ContactInfoProps[];
 	formSectionClassName?: string;
 };

@@ -1,9 +1,51 @@
 import { useTheme } from '../../contexts/ThemeContext'
 import { GlowingEffectDemo } from './GlowingEffectDemo'
+import { motion } from 'framer-motion'
 
 export function Features() {
     const { theme } = useTheme()
     const isDark = theme === 'dark'
+
+    const titleVariants = {
+        hidden: {},
+        visible: {
+            transition: {
+                staggerChildren: 0.2,
+                delayChildren: 0.3
+            }
+        }
+    };
+
+    const wordVariants = {
+        hidden: { 
+            y: 60, 
+            opacity: 0,
+            filter: 'blur(4px)'
+        },
+        visible: {
+            y: 0,
+            opacity: 1,
+            filter: 'blur(0px)',
+            transition: {
+                duration: 1.0,
+                ease: [0.22, 1, 0.36, 1] as const
+            }
+        }
+    };
+
+    const renderAnimatedWords = (text: string, className?: string) => {
+        const words = text.split(' ');
+        return words.map((word, index) => (
+            <motion.span
+                key={`${word}-${index}`}
+                variants={wordVariants}
+                style={{ display: 'inline-block', marginRight: '0.3em' }}
+                className={className}
+            >
+                {word}
+            </motion.span>
+        ));
+    };
 
     return (
         <section 
@@ -29,12 +71,25 @@ export function Features() {
             <div className="mx-auto w-full space-y-12 md:space-y-16 px-6 md:px-8 lg:px-12 relative z-10">
                 {/* Header Section */}
                 <div className="space-y-4 md:space-y-6 text-center">
-                    <h2 className={`text-4xl md:text-5xl lg:text-6xl font-bold leading-tight tracking-tight transition-colors duration-300 ${
-                        isDark ? 'text-white' : 'text-gray-900'
-                    }`}>
-                        Powerful <span className="gradient-text-green">AI-Driven</span> opBNB<br />
-                        <span className="gradient-text-green">Blockchain Solutions</span>
-                    </h2>
+                    <motion.h2 
+                        className={`text-4xl md:text-5xl lg:text-6xl font-bold leading-tight tracking-tight transition-colors duration-300 ${
+                            isDark ? 'text-white' : 'text-gray-900'
+                        }`}
+                        variants={titleVariants}
+                        initial="hidden"
+                        whileInView="visible"
+                        viewport={{ once: false }}
+                        style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center' }}
+                    >
+                        <span style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', width: '100%' }}>
+                            {renderAnimatedWords('Powerful')}
+                            {renderAnimatedWords('AI-Driven', 'gradient-text-green')}
+                            {renderAnimatedWords('opBNB')}
+                        </span>
+                        <span style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', width: '100%' }}>
+                            {renderAnimatedWords('Blockchain Solutions', 'gradient-text-green')}
+                        </span>
+                    </motion.h2>
                     <p className={`text-base md:text-lg max-w-3xl mx-auto leading-relaxed transition-colors duration-300 ${
                         isDark ? 'text-gray-300' : 'text-gray-600'
                     }`}>
