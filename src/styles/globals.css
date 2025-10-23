@@ -879,24 +879,24 @@ section > .container > div:first-child p {
   background-color: rgb(249, 250, 251);
 }
 
-[data-theme="light"] button:not([class*="outline"]):not([class*="ghost"]):not(.theme-toggle-btn) {
+[data-theme="light"] button:not([class*="outline"]):not([class*="ghost"]):not(.theme-toggle-btn):not(.nav-item) {
   background-color: #000 !important;
   color: #fff !important;
 }
 
-[data-theme="light"] button:not([class*="outline"]):not([class*="ghost"]):not(.theme-toggle-btn):hover {
+[data-theme="light"] button:not([class*="outline"]):not([class*="ghost"]):not(.theme-toggle-btn):not(.nav-item):hover {
   background-color: rgb(17, 24, 39) !important;
 }
 
 /* Get Started button in header */
-[data-theme="light"] header button:not([class*="outline"]):not([class*="ghost"]):not(.theme-toggle-btn),
-[data-theme="light"] header nav button:not([class*="outline"]):not([class*="ghost"]):not(.theme-toggle-btn) {
+[data-theme="light"] header button:not([class*="outline"]):not([class*="ghost"]):not(.theme-toggle-btn):not(.nav-item),
+[data-theme="light"] header nav button:not([class*="outline"]):not([class*="ghost"]):not(.theme-toggle-btn):not(.nav-item) {
   background-color: #000 !important;
   color: #fff !important;
 }
 
-[data-theme="light"] header button:not([class*="outline"]):not([class*="ghost"]):not(.theme-toggle-btn):hover,
-[data-theme="light"] header nav button:not([class*="outline"]):not([class*="ghost"]):not(.theme-toggle-btn):hover {
+[data-theme="light"] header button:not([class*="outline"]):not([class*="ghost"]):not(.theme-toggle-btn):not(.nav-item):hover,
+[data-theme="light"] header nav button:not([class*="outline"]):not([class*="ghost"]):not(.theme-toggle-btn):not(.nav-item):hover {
   background-color: rgb(17, 24, 39) !important;
 }
 
