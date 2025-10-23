@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { IoCopy, IoCheckmarkCircle, IoTrendingUp, IoTrendingDown, IoEye } from 'react-icons/io5';
+import { IoCopy, IoCheckmarkCircle, IoTrendingUp, IoTrendingDown, IoEye, IoSend, IoWallet, IoMail, IoCash, IoClose, IoRefresh } from 'react-icons/io5';
 import { useWalletStore } from '../../store/walletStore';
 import { ethers } from 'ethers';
 import { TransactionService, type Transaction } from '../../services/transactionService';
@@ -18,6 +18,8 @@ const Wallet: React.FC = () => {
   const [copiedText, setCopiedText] = useState<string | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [isLoadingTransactions, setIsLoadingTransactions] = useState(false);
+  const [addressError, setAddressError] = useState('');
+  const [amountError, setAmountError] = useState('');
 
   const fetchBalance = useCallback(async () => {
     if (!wallet?.address) return;
@@ -129,9 +131,51 @@ const Wallet: React.FC = () => {
     }
   };
 
-  const showPrivateKeyModal = () => {
-    // Show the warning modal first
-    setShowWarningModal(true);
+  const validateAddress = (address: string) => {
+    if (!address) {
+      setAddressError('');
+      return false;
+    }
+    if (!address.startsWith('0x') || address.length !== 42) {
+      setAddressError('Invalid Ethereum address format');
+      return false;
+    }
+    if (!ethers.isAddress(address)) {
+      setAddressError('Invalid checksum address');
+      return false;
+    }
+    setAddressError('');
+    return true;
+  };
+
+  const validateAmount = (amount: string) => {
+    if (!amount) {
+      setAmountError('');
+      return false;
+    }
+    const numAmount = parseFloat(amount);
+    if (isNaN(numAmount) || numAmount <= 0) {
+      setAmountError('Amount must be greater than 0');
+      return false;
+    }
+    if (numAmount > parseFloat(balance)) {
+      setAmountError('Amount exceeds available balance');
+      return false;
+    }
+    setAmountError('');
+    return true;
+  };
+
+  const handleAddressChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setRecipientAddress(value);
+    validateAddress(value);
+  };
+
+  const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setSendAmount(value);
+    if (value) validateAmount(value);
   };
 
   const handleConfirmReveal = () => {
@@ -146,6 +190,10 @@ const Wallet: React.FC = () => {
 
   const handleCancelReveal = () => {
     setShowWarningModal(false);
+  };
+
+  const showPrivateKeyModal = () => {
+    setShowWarningModal(true);
   };
 
   return (
@@ -348,42 +396,117 @@ const Wallet: React.FC = () => {
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.3 }}
           >
-            <h3>Send BNB</h3>
+            {/* Premium Header */}
+            <div className="send-modal-header">
+              <div className="send-header-icon">
+                <IoSend size={24} />
+              </div>
+              <div className="send-header-content">
+                <h3>Send BNB</h3>
+                <p>Transfer BNB securely</p>
+              </div>
+            </div>
+
+            {/* Balance Display */}
+            <div className="send-balance-display">
+              <div className="balance-info">
+                <IoWallet size={16} />
+                <span className="balance-amount">{balance} BNB</span>
+                <span className="balance-usd">≈ {balanceUSD}</span>
+              </div>
+            </div>
+
             <div className="modal-form">
+              {/* Recipient Address */}
               <div className="form-group">
-                <label>Recipient Address</label>
-                <input
-                  type="text"
-                  value={recipientAddress}
-                  onChange={(e) => setRecipientAddress(e.target.value)}
-                  placeholder="0x..."
-                />
+                <label>
+                  <IoMail size={16} />
+                  Recipient Address
+                </label>
+                <div className="input-wrapper">
+                  <input
+                    type="text"
+                    value={recipientAddress}
+                    onChange={handleAddressChange}
+                    placeholder="0x..."
+                    className={`premium-input ${addressError ? 'error' : recipientAddress && !addressError ? 'success' : ''}`}
+                  />
+                </div>
+                {addressError && (
+                  <div className="form-error-message">
+                    {addressError}
+                  </div>
+                )}
               </div>
+
+              {/* Amount */}
               <div className="form-group">
-                <label>Amount (BNB)</label>
-                <input
-                  type="number"
-                  step="0.001"
-                  value={sendAmount}
-                  onChange={(e) => setSendAmount(e.target.value)}
-                  placeholder="0.0"
-                />
+                <label>
+                  <IoCash size={16} />
+                  Amount (BNB)
+                </label>
+                <div className="input-wrapper">
+                  <input
+                    type="number"
+                    step="0.001"
+                    value={sendAmount}
+                    onChange={handleAmountChange}
+                    placeholder="0.0"
+                    className={`premium-input ${amountError ? 'error' : sendAmount && !amountError ? 'success' : ''}`}
+                  />
+                </div>
+                {amountError && (
+                  <div className="form-error-message">
+                    {amountError}
+                  </div>
+                )}
+                {sendAmount && (
+                  <div className="amount-preview">
+                    ≈ ${(parseFloat(sendAmount) * (bnbPrice?.price || 0)).toFixed(2)} USD
+                  </div>
+                )}
               </div>
-              <div className="modal-actions">
-                <button
-                  className="modal-btn secondary"
-                  onClick={() => setShowSendModal(false)}
-                >
-                  Cancel
-                </button>
-                <button
-                  className="modal-btn primary"
-                  onClick={handleSendBNB}
-                  disabled={!recipientAddress || !sendAmount || isLoadingBalance}
-                >
-                  {isLoadingBalance ? 'Sending...' : 'Send'}
-                </button>
+
+              {/* Gas Estimation */}
+              <div className="gas-estimation">
+                <div className="gas-info">
+                  <span className="gas-label">Network Fee:</span>
+                  <span className="gas-amount">~0.0001 BNB</span>
+                  <span className="gas-usd">(≈ $0.02)</span>
+                </div>
               </div>
+            </div>
+
+            {/* Premium Actions */}
+            <div className="modal-actions send-actions">
+              <motion.button
+                className="modal-btn secondary cancel-btn"
+                onClick={() => setShowSendModal(false)}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+              >
+                <IoClose size={16} />
+                Cancel
+              </motion.button>
+              <motion.button
+                className="modal-btn primary send-btn"
+                onClick={handleSendBNB}
+                disabled={!recipientAddress || !sendAmount || isLoadingBalance || !!addressError || !!amountError}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+              >
+                {isLoadingBalance ? (
+                  <>
+                    <IoRefresh size={16} className="animate-spin" />
+                    Sending...
+                  </>
+                ) : (
+                  <>
+                    <IoSend size={16} />
+                    Send BNB
+                  </>
+                )}
+              </motion.button>
             </div>
           </motion.div>
         </div>
