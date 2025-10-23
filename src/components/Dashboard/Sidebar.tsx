@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { IoFlash, IoCube, IoImage, IoWallet, IoMoon, IoSunny } from 'react-icons/io5';
+import { Zap, Box, Image, Wallet, Moon, Sun, LogOut } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { useTheme } from '../../contexts/ThemeContext';
 import '../../styles/dashboard.css';
@@ -15,10 +15,10 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => {
   const { theme, toggleTheme } = useTheme();
 
   const menuItems = [
-    { id: 'chat', label: 'AI Chat', icon: <IoFlash /> },
-    { id: 'tokens', label: 'My Tokens', icon: <IoCube /> },
-    { id: 'nfts', label: 'My NFTs', icon: <IoImage /> },
-    { id: 'wallet', label: 'Wallet', icon: <IoWallet /> }
+    { id: 'chat', label: 'AI Chat', icon: <Zap size={20} strokeWidth={2.5} /> },
+    { id: 'tokens', label: 'My Tokens', icon: <Box size={20} strokeWidth={2.5} /> },
+    { id: 'nfts', label: 'My NFTs', icon: <Image size={20} strokeWidth={2.5} /> },
+    { id: 'wallet', label: 'Wallet', icon: <Wallet size={20} strokeWidth={2.5} /> }
   ];
 
   const handleSignOut = () => {
@@ -48,17 +48,14 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => {
       {/* Navigation Menu */}
       <nav className="sidebar-nav">
         {menuItems.map((item) => (
-          <motion.button
+          <button
             key={item.id}
             className={`nav-item ${activeTab === item.id ? 'active' : ''}`}
             onClick={() => setActiveTab(item.id)}
-            whileHover={{ x: 8 }}
-            whileTap={{ scale: 0.98 }}
-            transition={{ type: "spring", stiffness: 400, damping: 17 }}
           >
             <span className="nav-icon">{item.icon}</span>
             <span className="nav-label">{item.label}</span>
-          </motion.button>
+          </button>
         ))}
       </nav>
 
@@ -73,26 +70,31 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => {
         </div>
         
         {/* Theme Toggle */}
-        <motion.button
+        <button
           className="theme-toggle-btn"
           onClick={toggleTheme}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          transition={{ type: "spring", stiffness: 400, damping: 17 }}
           title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
         >
-          {theme === 'dark' ? <IoSunny size={20} /> : <IoMoon size={20} />}
-        </motion.button>
+          {theme === 'dark' ? (
+            <>
+              <Sun size={18} strokeWidth={2.5} />
+              <span>Light Mode</span>
+            </>
+          ) : (
+            <>
+              <Moon size={18} strokeWidth={2.5} />
+              <span>Dark Mode</span>
+            </>
+          )}
+        </button>
         
-        <motion.button
+        <button
           className="sign-out-btn"
           onClick={handleSignOut}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          transition={{ type: "spring", stiffness: 400, damping: 17 }}
         >
-          Sign Out
-        </motion.button>
+          <LogOut size={18} strokeWidth={2.5} />
+          <span>Sign Out</span>
+        </button>
       </div>
     </motion.aside>
   );
