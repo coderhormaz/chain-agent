@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { IoFlash, IoSend, IoTrash } from 'react-icons/io5';
+import { IoFlash, IoTrash, IoArrowForward } from 'react-icons/io5';
 import { useConversationStore } from '../../store/conversationStore';
 import { geminiAI } from '../../services/geminiAI';
 import { UploadButton, ImagePreview } from '../UploadButton';
@@ -34,7 +34,10 @@ const AIChat: React.FC = () => {
   }, [messages]);
 
   const handleSendMessage = async () => {
-    if (!inputValue.trim() || isProcessing) return;
+    // Prevent sending empty messages
+    if (!inputValue.trim() || isProcessing) {
+      return;
+    }
 
     const userInput = inputValue.trim();
     setInputValue('');
@@ -354,13 +357,6 @@ Please try again with a different image or check your internet connection.`,
     }
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSendMessage();
-    }
-  };
-
   const handleClearChat = () => {
     clearConversation();
   };
@@ -444,37 +440,49 @@ Please try again with a different image or check your internet connection.`,
         <div ref={messagesEndRef} />
       </div>
 
-      <div className="chat-input-container">
+      <div className="modern-chat-input-wrapper">
         {pendingAction?.isWaitingForConfirmation && (
           <div className="confirmation-banner">
             <span>⏳ Waiting for your confirmation (Yes/No)</span>
           </div>
         )}
-        <div className="chat-input-wrapper">
-          <textarea
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            onKeyPress={handleKeyPress}
-            placeholder={
-              pendingAction?.isWaitingForConfirmation 
-                ? "Type 'Yes' to confirm or 'No' to cancel..." 
-                : "Ask me to create tokens, mint NFTs, send BNB, or check your wallet..."
-            }
-            className="chat-input"
-            rows={1}
-            disabled={isProcessing}
-          />
-          <motion.button
-            className="send-button"
-            onClick={handleSendMessage}
-            disabled={!inputValue.trim() || isProcessing}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-          >
-            <span>{isProcessing ? 'Processing...' : 'Send'}</span>
-            <IoSend />
-          </motion.button>
-        </div>
+        <form 
+          className="modern-chat-form"
+          onSubmit={(e: React.FormEvent) => {
+            e.preventDefault();
+            handleSendMessage();
+          }}
+        >
+          <div className="modern-input-container">
+            <textarea
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSendMessage();
+                }
+              }}
+              placeholder={
+                pendingAction?.isWaitingForConfirmation 
+                  ? "Type 'Yes' to confirm or 'No' to cancel..." 
+                  : "Type your message here..."
+              }
+              className="modern-chat-textarea"
+              disabled={isProcessing}
+              rows={1}
+            />
+            <motion.button
+              type="submit"
+              className="modern-send-button"
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+            >
+              Send Message
+              <IoArrowForward className="modern-send-icon" />
+            </motion.button>
+          </div>
+        </form>
       </div>
     </>
   );

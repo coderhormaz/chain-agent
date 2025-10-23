@@ -84,7 +84,7 @@ const MessageRenderer: React.FC<MessageRendererProps> = ({ content }) => {
     const parsedContent = parseContent(processedLine);
     
     return (
-      <p key={index} style={{ margin: '0.5em 0', lineHeight: '1.5' }}>
+      <p key={index}>
         {parsedContent.length > 0 ? parsedContent : line}
       </p>
     );
