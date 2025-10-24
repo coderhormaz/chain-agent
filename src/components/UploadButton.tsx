@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { IoCloudUpload, IoClose } from 'react-icons/io5';
 import { LighthouseService } from '../services/lighthouseService';
@@ -7,17 +7,25 @@ interface UploadButtonProps {
   onUploadStart?: () => void;
   onUploadComplete?: (url: string, fileName: string) => void;
   onUploadError?: (error: string) => void;
+  hasUploaded?: boolean;
 }
 
 export const UploadButton: React.FC<UploadButtonProps> = ({
   onUploadStart,
   onUploadComplete,
   onUploadError,
+  hasUploaded = false,
 }) => {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
+  const [uploadComplete, setUploadComplete] = useState(hasUploaded);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Sync uploadComplete state with hasUploaded prop
+  useEffect(() => {
+    setUploadComplete(hasUploaded);
+  }, [hasUploaded]);
 
   const handleFileSelect = async (file: File) => {
     // Validate file type
@@ -51,6 +59,7 @@ export const UploadButton: React.FC<UploadButtonProps> = ({
       setUploadProgress(100);
 
       if (result.success && result.url) {
+        setUploadComplete(true);
         onUploadComplete?.(result.url, file.name);
       } else {
         throw new Error(result.error || 'Upload failed');
@@ -69,6 +78,7 @@ export const UploadButton: React.FC<UploadButtonProps> = ({
   };
 
   const handleInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (uploadComplete) return; // Prevent upload if already uploaded
     const file = event.target.files?.[0];
     if (file) handleFileSelect(file);
   };
@@ -87,6 +97,8 @@ export const UploadButton: React.FC<UploadButtonProps> = ({
     e.preventDefault();
     setIsDragging(false);
     
+    if (uploadComplete) return; // Prevent drop if already uploaded
+    
     const file = e.dataTransfer.files[0];
     if (file && file.type.startsWith('image/')) {
       handleFileSelect(file);
@@ -96,6 +108,7 @@ export const UploadButton: React.FC<UploadButtonProps> = ({
   };
 
   const triggerFileSelect = () => {
+    if (uploadComplete) return; // Prevent click if already uploaded
     fileInputRef.current?.click();
   };
 
@@ -110,16 +123,38 @@ export const UploadButton: React.FC<UploadButtonProps> = ({
       />
       
       <motion.div
-        className={`premium-upload-zone ${isDragging ? 'dragging' : ''} ${isUploading ? 'uploading' : ''}`}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-        onClick={!isUploading ? triggerFileSelect : undefined}
-        whileHover={!isUploading ? { scale: 1.01 } : {}}
-        whileTap={!isUploading ? { scale: 0.99 } : {}}
+        className={`premium-upload-zone ${isDragging ? 'dragging' : ''} ${isUploading ? 'uploading' : ''} ${uploadComplete ? 'upload-disabled' : ''}`}
+        onDragOver={!uploadComplete ? handleDragOver : undefined}
+        onDragLeave={!uploadComplete ? handleDragLeave : undefined}
+        onDrop={!uploadComplete ? handleDrop : undefined}
+        onClick={!isUploading && !uploadComplete ? triggerFileSelect : undefined}
+        whileHover={!isUploading && !uploadComplete ? { scale: 1.01 } : {}}
+        whileTap={!isUploading && !uploadComplete ? { scale: 0.99 } : {}}
+        style={{ cursor: uploadComplete ? 'not-allowed' : isUploading ? 'wait' : 'pointer', opacity: uploadComplete ? 0.6 : 1 }}
       >
         <AnimatePresence mode="wait">
-          {isUploading ? (
+          {uploadComplete ? (
+            <motion.div
+              key="completed"
+              className="upload-state"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+            >
+              <motion.div className="upload-icon upload-success">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none">
+                  <path
+                    d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"
+                    fill="currentColor"
+                  />
+                </svg>
+              </motion.div>
+              <div className="upload-text">
+                <h4 style={{ color: '#10b981' }}>✓ Upload Complete</h4>
+                <p>Image successfully uploaded to IPFS</p>
+              </div>
+            </motion.div>
+          ) : isUploading ? (
             <motion.div
               key="uploading"
               className="upload-state"

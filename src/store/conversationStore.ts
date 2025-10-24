@@ -12,6 +12,7 @@ export interface ConversationMessage {
   showUpload?: boolean;
   uploadedImage?: {url: string, fileName: string};
   status?: 'success' | 'error' | 'info';
+  hasUploaded?: boolean;
 }
 
 export interface PendingAction {

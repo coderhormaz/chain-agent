@@ -33,6 +33,7 @@ interface AuthModalState {
   openSignup: () => void;
   closeLogin: () => void;
   closeSignup: () => void;
+  closeModals: () => void;
 }
 
 // Helper function to check authentication
@@ -68,4 +69,5 @@ export const useAuthModalStore = create<AuthModalState>((set) => ({
   },
   closeLogin: () => set({ isLoginOpen: false }),
   closeSignup: () => set({ isSignupOpen: false }),
+  closeModals: () => set({ isLoginOpen: false, isSignupOpen: false }),
 }));
