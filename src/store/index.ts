@@ -31,13 +31,41 @@ interface AuthModalState {
   isSignupOpen: boolean;
   openLogin: () => void;
   openSignup: () => void;
-  closeModals: () => void;
+  closeLogin: () => void;
+  closeSignup: () => void;
 }
+
+// Helper function to check authentication
+const checkAuthAndNavigate = () => {
+  const authState = localStorage.getItem('auth-storage');
+  if (authState) {
+    try {
+      const parsed = JSON.parse(authState);
+      if (parsed.state?.isAuthenticated) {
+        // User is already logged in, navigate to dashboard
+        window.location.href = '/dashboard';
+        return true;
+      }
+    } catch (e) {
+      console.error('Error parsing auth state:', e);
+    }
+  }
+  return false;
+};
 
 export const useAuthModalStore = create<AuthModalState>((set) => ({
   isLoginOpen: false,
   isSignupOpen: false,
-  openLogin: () => set({ isLoginOpen: true, isSignupOpen: false }),
-  openSignup: () => set({ isSignupOpen: true, isLoginOpen: false }),
-  closeModals: () => set({ isLoginOpen: false, isSignupOpen: false })
+  openLogin: () => {
+    if (!checkAuthAndNavigate()) {
+      set({ isLoginOpen: true, isSignupOpen: false });
+    }
+  },
+  openSignup: () => {
+    if (!checkAuthAndNavigate()) {
+      set({ isSignupOpen: true, isLoginOpen: false });
+    }
+  },
+  closeLogin: () => set({ isLoginOpen: false }),
+  closeSignup: () => set({ isSignupOpen: false }),
 }));

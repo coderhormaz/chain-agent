@@ -2,11 +2,23 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { ParticleBackground } from './ParticleBackground';
 import { useAuthModalStore } from '../store';
+import { useAuthStore } from '../store/authStore';
 import ShinyText from './ShinyText';
 import { SparklesCore } from './ui/sparkles';
+import { useNavigate } from 'react-router-dom';
 
 export const Hero: React.FC = () => {
   const { openLogin } = useAuthModalStore();
+  const { isAuthenticated } = useAuthStore();
+  const navigate = useNavigate();
+
+  const handlePrimaryAction = () => {
+    if (isAuthenticated) {
+      navigate('/dashboard');
+    } else {
+      openLogin();
+    }
+  };
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -116,14 +128,14 @@ export const Hero: React.FC = () => {
             </span>
           </motion.h1>
           
-          <motion.p 
+          <motion.div 
             className="hero-subtitle premium-subtitle"
             variants={itemVariants}
           >
             <ShinyText text="Deploy smart contracts, create tokens, and mint NFTs using AI on opBNB." speed={6} />
             <br />
             <ShinyText text="Experience ultra-low fees and lightning-fast transactions with our intelligent assistant." speed={6} />
-          </motion.p>
+          </motion.div>
           
           <motion.div 
             className="hero-actions premium-actions"
@@ -131,14 +143,14 @@ export const Hero: React.FC = () => {
           >
             <motion.button 
               className="btn-hero-primary"
-              onClick={openLogin}
+              onClick={handlePrimaryAction}
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
             >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M13 10V3L4 14h7v7l9-11h-7z"/>
               </svg>
-              <span>Get Started Free</span>
+              <span>{isAuthenticated ? 'Go to Dashboard' : 'Get Started Free'}</span>
             </motion.button>
             <motion.button 
               className="btn-hero-secondary"
