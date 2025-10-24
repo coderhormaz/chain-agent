@@ -1491,6 +1491,17 @@ button[size="icon"] {
   background: rgba(99, 102, 241, 0.03);
 }
 
+.premium-upload-zone.upload-disabled {
+  cursor: not-allowed !important;
+  border-color: var(--border-light);
+  background: var(--bg-tertiary);
+  pointer-events: none;
+}
+
+.premium-upload-zone.upload-disabled::before {
+  opacity: 0;
+}
+
 .upload-state {
   position: relative;
   z-index: 1;
@@ -1511,6 +1522,23 @@ button[size="icon"] {
   border-radius: var(--radius-full);
   color: var(--primary);
   transition: all var(--transition-base);
+}
+
+.upload-icon.upload-success {
+  background: rgba(16, 185, 129, 0.1);
+  color: var(--success);
+  animation: successPulse 2s ease-in-out infinite;
+}
+
+@keyframes successPulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 0.9;
+  }
 }
 
 .premium-upload-zone:hover:not(.uploading) .upload-icon {

@@ -179,6 +179,12 @@ No problem! The action has been cancelled. Is there something else I can help yo
   const handleUploadComplete = async (url: string, fileName: string) => {
     setUploadedImage({ url, fileName });
     
+    // Mark the upload message as completed
+    const uploadMessage = messages.find(msg => msg.showUpload && !msg.hasUploaded);
+    if (uploadMessage) {
+      useConversationStore.getState().updateMessage(uploadMessage.id, { hasUploaded: true });
+    }
+    
     // Check if we already have NFT details from the original request
     if (pendingNFTDetails && (pendingNFTDetails.name || pendingNFTDetails.description)) {
       // We have details - proceed directly to confirmation
@@ -411,6 +417,7 @@ Please try again with a different image or check your internet connection.`,
               <UploadButton
                 onUploadComplete={handleUploadComplete}
                 onUploadError={handleUploadError}
+                hasUploaded={message.hasUploaded || false}
               />
             )}
             {message.uploadedImage && (
