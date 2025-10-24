@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { EyeIcon, EyeOffIcon } from "lucide-react";
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import type { JSX, SVGProps } from "react";
 import { AuthService } from '../services/auth';
 import { useWalletStore, useAuthModalStore } from '../store';
@@ -40,6 +41,7 @@ const Logo = (props: JSX.IntrinsicAttributes & SVGProps<SVGSVGElement>) => (
 );
 
 export default function SignUp() {
+  const navigate = useNavigate();
   const [step, setStep] = useState<1 | 2>(1);
   const [isPasswordVisible, setIsPasswordVisible] = useState<boolean>(false);
   const [isConfirmPasswordVisible, setIsConfirmPasswordVisible] = useState<boolean>(false);
@@ -128,6 +130,9 @@ export default function SignUp() {
       
       // Clear form and close modal
       handleClose();
+      
+      // Navigate to dashboard
+      navigate('/dashboard');
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to sign up. Please try again.';
       console.error('❌ Signup failed:', error);

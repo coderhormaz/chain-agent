@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { EyeIcon, EyeOffIcon } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
+import { useNavigate } from "react-router-dom";
 import type { JSX, SVGProps } from "react";
 import { AuthService } from '../services/auth';
 import { useWalletStore, useAuthModalStore } from '../store';
@@ -42,6 +43,7 @@ const Logo = (props: JSX.IntrinsicAttributes & SVGProps<SVGSVGElement>) => (
 );
 
 export default function SignIn() {
+  const navigate = useNavigate();
   const [isPasswordVisible, setIsPasswordVisible] = useState<boolean>(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -169,6 +171,9 @@ export default function SignIn() {
       
       // Clear form and close modal
       handleClose();
+      
+      // Navigate to dashboard
+      navigate('/dashboard');
     } catch (error: unknown) {
       // Clear timeout on error
       if (timeoutId) clearTimeout(timeoutId);

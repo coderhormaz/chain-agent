@@ -4,17 +4,32 @@ import { Button, buttonVariants } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useScroll } from '@/components/ui/use-scroll';
 import { useAuthModalStore } from '../../store/index';
+import { useAuthStore } from '../../store/authStore';
 import { ThemeToggle } from '../ThemeToggle';
 import { useTheme } from '../../contexts/ThemeContext';
 import StaggeredMenu from '@/components/ui/StaggeredMenu';
 import type { StaggeredMenuItem } from '@/components/ui/StaggeredMenu';
+import { useNavigate } from 'react-router-dom';
+import { supabase } from '../../lib/supabase';
 
 export function Header() {
 	const [open, setOpen] = React.useState(false);
 	const [menuOpen, setMenuOpen] = React.useState(false);
 	const scrolled = useScroll(10);
 	const { openLogin, openSignup } = useAuthModalStore();
+	const { isAuthenticated, logout } = useAuthStore();
 	const { theme } = useTheme();
+	const navigate = useNavigate();
+
+	const handleLogout = async () => {
+		await supabase.auth.signOut();
+		logout();
+		navigate('/');
+	};
+
+	const handleDashboardClick = () => {
+		navigate('/dashboard');
+	};
 
 	const links = [
 		{
@@ -52,11 +67,17 @@ export function Header() {
 	}));
 
 	// Add auth buttons to menu items
-	const authMenuItems: StaggeredMenuItem[] = [
-		...menuItems,
-		{ label: 'Sign In', ariaLabel: 'Sign in to your account', link: '#signin' },
-		{ label: 'Get Started', ariaLabel: 'Get started with opBNB', link: '#signup' },
-	];
+	const authMenuItems: StaggeredMenuItem[] = isAuthenticated
+		? [
+				...menuItems,
+				{ label: 'Dashboard', ariaLabel: 'Go to dashboard', link: '#dashboard' },
+				{ label: 'Logout', ariaLabel: 'Logout from your account', link: '#logout' },
+		  ]
+		: [
+				...menuItems,
+				{ label: 'Sign In', ariaLabel: 'Sign in to your account', link: '#signin' },
+				{ label: 'Get Started', ariaLabel: 'Get started with opBNB', link: '#signup' },
+		  ];
 
 	React.useEffect(() => {
 		if (open) {
@@ -82,6 +103,14 @@ export function Header() {
 		}
 		if (href === '#signup') {
 			openSignup();
+			return;
+		}
+		if (href === '#logout') {
+			handleLogout();
+			return;
+		}
+		if (href === '#dashboard') {
+			handleDashboardClick();
 			return;
 		}
 
@@ -172,17 +201,35 @@ export function Header() {
 							</a>
 						))}
 						<ThemeToggle />
-						<Button variant="outline" onClick={openLogin}>Sign In</Button>
-						<Button 
-							onClick={openSignup}
-							style={{
-								backgroundColor: theme === 'light' ? '#000 !important' : '#fff !important',
-								color: theme === 'light' ? '#fff !important' : '#000 !important',
-							} as React.CSSProperties}
-							className="get-started-btn"
-						>
-							Get Started
-						</Button>
+						{isAuthenticated ? (
+							<>
+								<Button variant="outline" onClick={handleLogout}>Logout</Button>
+								<Button 
+									onClick={handleDashboardClick}
+									style={{
+										backgroundColor: theme === 'light' ? '#000 !important' : '#fff !important',
+										color: theme === 'light' ? '#fff !important' : '#000 !important',
+									} as React.CSSProperties}
+									className="get-started-btn"
+								>
+									Go to Dashboard
+								</Button>
+							</>
+						) : (
+							<>
+								<Button variant="outline" onClick={openLogin}>Sign In</Button>
+								<Button 
+									onClick={openSignup}
+									style={{
+										backgroundColor: theme === 'light' ? '#000 !important' : '#fff !important',
+										color: theme === 'light' ? '#fff !important' : '#000 !important',
+									} as React.CSSProperties}
+									className="get-started-btn"
+								>
+									Get Started
+								</Button>
+							</>
+						)}
 					</div>
 				</nav>
 			</header>
