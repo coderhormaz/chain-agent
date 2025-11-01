@@ -60,6 +60,28 @@ class GeminiAIService {
       // Parse the AI response to extract structured data
       const parsedResponse = this.parseAIResponse(text);
       
+      // If this is an upload_nft action, try to extract NFT details from the original input
+      // Only do this if the input contains more than just basic commands
+      if (parsedResponse.action?.action === 'upload_nft') {
+        const isSimpleCommand = /^(mint|create|make|upload)\s+(nft|an?\s+nft)$/i.test(input.trim());
+        
+        if (!isSimpleCommand) {
+          try {
+            const nftDetails = await this.parseNFTDetails(input);
+            if (nftDetails.name && nftDetails.name.length > 0) {
+              parsedResponse.action.details = {
+                ...parsedResponse.action.details,
+                name: nftDetails.name,
+                description: nftDetails.description
+              };
+              console.log('🎨 NFT details extracted from initial input:', nftDetails);
+            }
+          } catch (error) {
+            console.log('Could not extract NFT details from initial input:', error);
+          }
+        }
+      }
+      
       return parsedResponse;
     } catch (error) {
       console.error('Gemini AI Error:', error);
@@ -85,7 +107,7 @@ TOKEN DEFAULTS:
 REQUIRED FIELDS:
 - create_token: name, symbol, totalSupply (decimals auto-set to 18)
 - mint_nft: ALWAYS start with upload_nft first, then ask for name/description after upload
-- upload_nft: No fields needed, show upload button immediately
+- upload_nft: No fields needed, show upload button immediately, BUT extract NFT name/description ONLY if actual names provided (NOT commands like "mint nft")
 - send_transaction: recipient (0x address), amount, token (default: BNB)
 
 JSON FORMAT:
@@ -107,9 +129,11 @@ RULES:
 1. Extract all available data from user input
 2. Auto-fill token defaults intelligently
 3. For NFT: ALWAYS use upload_nft first, never ask for details before upload
-4. Ask for missing fields conversationally
-5. Set isComplete=true when all required fields present
-6. Keep responses brief and friendly
+4. Extract NFT name/description ONLY from actual names, NOT from commands (e.g., "name hormaz description cool nft" ✓, "mint nft" ✗)
+5. Commands like "mint nft", "create nft" should NOT populate name/description fields
+6. Ask for missing fields conversationally
+7. Set isComplete=true when all required fields present
+8. Keep responses brief and friendly
 
 Context: ${JSON.stringify(context)}
 Input: "${userInput}"
@@ -189,6 +213,14 @@ Respond with JSON:`;
       if (parsedJson.action?.action === 'upload_nft') {
         parsedJson.action.isComplete = true;
         parsedJson.requiresConfirmation = true; // This triggers the special upload handling
+        
+        // Extract NFT details if they were provided in the parsed action
+        if (parsedJson.action.details) {
+          const details = parsedJson.action.details;
+          if (details.name || details.description) {
+            console.log('🎨 NFT details extracted from upload request:', details);
+          }
+        }
       }      return {
         response: parsedJson.response || aiResponse,
         action: parsedJson.action || null,
@@ -201,6 +233,59 @@ Respond with JSON:`;
         action: null,
         requiresConfirmation: false
       };
+    }
+  }
+
+  // Parse NFT details from natural language input
+  async parseNFTDetails(userInput: string): Promise<{name: string, description: string}> {
+    try {
+      const prompt = `Extract NFT name and description from this user input: "${userInput}"
+
+IMPORTANT: Only extract actual NFT names and descriptions, NOT commands or requests.
+
+Commands/requests to IGNORE (return empty):
+- "mint nft"
+- "create nft" 
+- "make nft"
+- "upload nft"
+- General action words without actual names
+
+Valid formats to extract from:
+- "name hormaz description cool nft"
+- "call it Digital Art"  
+- "My Amazing NFT with description Beautiful digital artwork"
+- "Name: Cool Art, Description: Amazing piece"
+- "Crypto Punk #1234"
+
+Return ONLY valid JSON in this exact format:
+{
+  "name": "extracted name here or empty string if this is just a command",
+  "description": "extracted description here or empty string if none"
+}
+
+Rules:
+- If input is just a command like "mint nft", return empty name
+- Name should be an actual NFT title, not an action
+- Remove command words like "name", "description", "call it", "called"
+- Keep the actual name/description content clean`;
+
+      const result = await this.model.generateContent(prompt);
+      const response = result.response.text();
+      
+      // Extract JSON from response
+      const jsonMatch = response.match(/\{[\s\S]*\}/) || response.match(/```json\n([\s\S]*?)\n```/);
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[1] || jsonMatch[0]);
+        return {
+          name: (parsed.name || '').trim(),
+          description: (parsed.description || '').trim()
+        };
+      }
+      
+      return { name: '', description: '' };
+    } catch (error) {
+      console.error('Error parsing NFT details:', error);
+      return { name: '', description: '' };
     }
   }
 
