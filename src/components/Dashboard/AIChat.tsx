@@ -70,12 +70,18 @@ const AIChat: React.FC = () => {
 
       // Handle special upload_nft action first
       if (result.action && result.action.action === 'upload_nft' && result.action.isComplete && result.requiresConfirmation) {
-        // Store NFT details from the action for later use
-        if (result.action.details) {
-          setPendingNFTDetails({
-            name: result.action.details.name,
-            description: result.action.details.description
-          });
+        // Store NFT details from the action for later use, but only if they're valid
+        if (result.action.details && result.action.details.name) {
+          // Check if the name is actually a valid NFT name and not a command
+          const isValidNFTName = result.action.details.name && 
+                                !result.action.details.name.toLowerCase().match(/^(mint|create|make|upload)\s+(nft|an?\s+nft)$/);
+          
+          if (isValidNFTName) {
+            setPendingNFTDetails({
+              name: result.action.details.name,
+              description: result.action.details.description
+            });
+          }
         }
         
         addMessage({
@@ -186,9 +192,9 @@ No problem! The action has been cancelled. Is there something else I can help yo
     }
     
     // Check if we already have NFT details from the original request
-    if (pendingNFTDetails && (pendingNFTDetails.name || pendingNFTDetails.description)) {
-      // We have details - proceed directly to confirmation
-      const name = pendingNFTDetails.name || 'Untitled NFT';
+    if (pendingNFTDetails && pendingNFTDetails.name && pendingNFTDetails.name.trim().length > 0) {
+      // We have valid details - proceed directly to confirmation
+      const name = pendingNFTDetails.name;
       const description = pendingNFTDetails.description || `NFT created with opBNB AI Assistant`;
 
       // Create NFT action with uploaded image
@@ -251,7 +257,11 @@ Your image has been stored on the decentralized network. Now I need a few more d
 1. **NFT Name** - What should your NFT be called?
 2. **Description** - Tell me about your NFT (optional)
 
-You can provide both in one message like: "Name: My Art, Description: Beautiful digital artwork"`,
+You can provide both in one message using any of these formats:
+• "name hormaz description cool nft"
+• "Name: My Art, Description: Beautiful digital artwork"  
+• "call it Digital Art description Amazing piece"
+• Just the name: "My Amazing NFT"`,
         uploadedImage: { url, fileName }
       });
     }
@@ -275,49 +285,45 @@ Please try again with a different image or check your internet connection.`,
     if (!uploadedImage) return;
 
     try {
-      let name = '';
-      let description = '';
+      setProcessing(true);
+      
+      // Use AI to parse NFT details from user input
+      const parsedDetails = await geminiAI.parseNFTDetails(userInput);
+      console.log('AI NFT Details Result:', parsedDetails);
 
-      // Parse different input formats
-      if (userInput.toLowerCase().includes('create') && userInput.toLowerCase().includes('nft')) {
-        // Format: "create a nft called NAME description DESCRIPTION"
-        const calledMatch = userInput.match(/called\s+([^,\n]+?)(?:\s+description\s+(.+))?$/i);
-        if (calledMatch) {
-          name = calledMatch[1].trim();
-          description = calledMatch[2]?.trim() || '';
-          if (description.toLowerCase() === 'nothing') description = '';
+      let name = parsedDetails.name;
+      let description = parsedDetails.description;
+
+      // Fallback: simple keyword extraction if AI parsing fails
+      if (!name) {
+        const lowerInput = userInput.toLowerCase();
+        
+        if (lowerInput.includes('confirm') || lowerInput.includes('mint') || lowerInput.includes('proceed')) {
+          addMessage({
+            type: 'ai',
+            content: `I need at least a name for your NFT. Please tell me what to call it, like: "Name it Digital Art"`
+          });
+          return;
+        } else if (lowerInput.includes('skip') || lowerInput === 'no') {
+          addMessage({
+            type: 'ai',
+            content: `What would you like to name your NFT? For example: "Call it My Artwork"`
+          });
+          return;
+        } else if (userInput.length < 50 && !userInput.includes('description')) {
+          // Likely just a name
+          name = userInput.trim();
+        } else {
+          // Ask for clarification
+          addMessage({
+            type: 'ai',
+            content: `I need a name for your NFT. Please provide it clearly, like: "name MyNFT description cool artwork" or just "MyNFT"`
+          });
+          return;
         }
-      } else if (userInput.match(/name:\s*([^,\n]+)/i)) {
-        // Format: "name: NAME, description: DESCRIPTION"
-        const nameMatch = userInput.match(/name:\s*([^,\n]+)/i);
-        const descriptionMatch = userInput.match(/description:\s*([^,\n]+)/i);
-        name = nameMatch?.[1]?.trim() || '';
-        description = descriptionMatch?.[1]?.trim() || '';
-      } else if (userInput.toLowerCase().includes('confirm') || 
-                 userInput.toLowerCase().includes('mint') ||
-                 userInput.toLowerCase().includes('proceed')) {
-        // User wants to proceed without more details
-        addMessage({
-          type: 'ai',
-          content: `I need at least a name for your NFT. Please tell me what to call it, like: "Name it Digital Art"`
-        });
-        return;
-      } else if (userInput.toLowerCase().includes('skip') ||
-                 userInput.toLowerCase().includes('no description') ||
-                 userInput.toLowerCase() === 'no') {
-        // User is skipping description, but we still need a name
-        addMessage({
-          type: 'ai',
-          content: `What would you like to name your NFT? For example: "Call it My Artwork"`
-        });
-        return;
-      } else if (userInput.length < 50 && !userInput.includes(',')) {
-        // Likely just a name
-        name = userInput.trim();
-        description = '';
       }
 
-      if (!name) {
+      if (!name || name.length === 0) {
         addMessage({
           type: 'ai',
           content: `I need a name for your NFT. Please say something like: "Name it Hormaz" or "Call it Digital Art"`
@@ -360,6 +366,8 @@ Please try again with a different image or check your internet connection.`,
         type: 'ai',
         content: 'Error processing NFT details. Please try again.'
       });
+    } finally {
+      setProcessing(false);
     }
   };
 
