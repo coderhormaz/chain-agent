@@ -89,9 +89,86 @@ export const useAuth = () => {
       }
     });
 
+    // Handle page visibility change - refresh session when user comes back
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState === 'visible') {
+        console.log('Page became visible, checking session...');
+        try {
+          // First try getSession (faster, uses cached session)
+          const { data: { session: cachedSession }, error: getError } = await supabase.auth.getSession();
+          
+          if (!getError && cachedSession?.user) {
+            console.log('Valid cached session found');
+            setAuthUser(cachedSession.user);
+            setUser(cachedSession.user);
+            
+            const userWallet = await AuthService.getUserWallet(cachedSession.user.id);
+            if (userWallet) {
+              setWallet(userWallet);
+              setNewWallet({
+                address: userWallet.wallet_address,
+                privateKey: userWallet.encrypted_private_key
+              });
+            }
+            return;
+          }
+          
+          // If cached session failed, try refresh to get new token
+          console.log('Cached session invalid, refreshing...');
+          const { data: { session }, error } = await supabase.auth.refreshSession();
+          
+          if (error) {
+            console.error('Error refreshing session:', error);
+            // Session truly expired, clear state
+            setAuthUser(null);
+            setUser(null);
+            setWallet(null);
+            setNewWallet(null);
+            setBalance('0');
+            return;
+          }
+          
+          if (session?.user) {
+            console.log('Session refreshed successfully with new token');
+            setAuthUser(session.user);
+            setUser(session.user);
+            
+            // Refresh wallet if needed
+            const userWallet = await AuthService.getUserWallet(session.user.id);
+            if (userWallet) {
+              setWallet(userWallet);
+              setNewWallet({
+                address: userWallet.wallet_address,
+                privateKey: userWallet.encrypted_private_key
+              });
+            }
+          }
+        } catch (error) {
+          console.error('Failed to refresh session:', error);
+          // On error, clear the session state
+          setAuthUser(null);
+          setUser(null);
+          setWallet(null);
+          setNewWallet(null);
+          setBalance('0');
+        }
+      }
+    };
+    
+    // Also handle window focus event (when user returns to the tab)
+    const handleFocus = async () => {
+      console.log('Window focused, checking session...');
+      handleVisibilityChange();
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleFocus);
+
     return () => {
       clearTimeout(timeout);
       subscription.unsubscribe();
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
     };
   }, [setUser, setAuthUser, setWallet, setNewWallet, setLoading, setAuthLoading, setBalance, setInitialized, isInitialized]);
 
