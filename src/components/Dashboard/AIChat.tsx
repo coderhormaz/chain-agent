@@ -1,10 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { IoFlash, IoTrash, IoArrowForward } from 'react-icons/io5';
+import { Users } from 'lucide-react';
 import { useConversationStore } from '../../store/conversationStore';
 import { geminiAI } from '../../services/geminiAI';
 import { UploadButton, ImagePreview } from '../UploadButton';
 import MessageRenderer from '../MessageRenderer';
+import { ContactsModal } from './ContactsModal';
 
 const AIChat: React.FC = () => {
   const { 
@@ -23,6 +25,7 @@ const AIChat: React.FC = () => {
   const [uploadedImage, setUploadedImage] = useState<{url: string, fileName: string} | null>(null);
   const [isWaitingForNFTDetails, setIsWaitingForNFTDetails] = useState(false);
   const [pendingNFTDetails, setPendingNFTDetails] = useState<{name?: string, description?: string} | null>(null);
+  const [isContactsModalOpen, setIsContactsModalOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -383,10 +386,14 @@ Please try again with a different image or check your internet connection.`,
           <h2>opBNB AI Assistant</h2>
         </div>
         <div className="chat-actions">
-          <div className="chat-status">
-            <div className="status-dot"></div>
-            <span>Online</span>
-          </div>
+          <motion.button
+            className="contacts-btn px-3 py-1.5 rounded-lg bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-medium shadow-lg shadow-green-500/30 flex items-center gap-2 transition-all text-sm"
+            onClick={() => setIsContactsModalOpen(true)}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+          >
+            <Users size={16} /> Contacts
+          </motion.button>
           <motion.button
             className="clear-chat-btn"
             onClick={handleClearChat}
@@ -499,6 +506,12 @@ Please try again with a different image or check your internet connection.`,
           </div>
         </form>
       </div>
+
+      {/* Contacts Modal */}
+      <ContactsModal 
+        isOpen={isContactsModalOpen} 
+        onClose={() => setIsContactsModalOpen(false)} 
+      />
     </>
   );
 };

@@ -63,36 +63,52 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
-    detectSessionInUrl: true, // Enable automatic session detection from URL
-    // Use custom storage adapter
+    detectSessionInUrl: true,
     storageKey: STORAGE_KEY,
     storage: createCustomStorage(),
-    // Reduce auth timeout to prevent hanging
     flowType: 'pkce'
   },
   global: {
     headers: {
       'X-Client-Info': 'opbnb-ai-assistant@1.0.0',
-      'Cache-Control': 'no-cache',
-    },
-    fetch: (url, options = {}) => {
-      return fetch(url, {
-        ...options,
-        // Set reasonable timeout for all requests
-        signal: AbortSignal.timeout(30000), // 30 seconds max
-      });
-    },
+    }
   },
   db: {
     schema: 'public',
-  },
-  // Add realtime options for better connection handling
-  realtime: {
-    params: {
-      eventsPerSecond: 10,
-    },
-  },
+  }
 });
+
+// Add session recovery mechanism
+let sessionRecoveryAttempted = false;
+
+export const ensureSession = async () => {
+  try {
+    const { data: { session }, error } = await supabase.auth.getSession();
+    
+    if (error || !session) {
+      console.log('Session not found, attempting recovery...');
+      
+      if (!sessionRecoveryAttempted) {
+        sessionRecoveryAttempted = true;
+        const { data: { session: refreshedSession }, error: refreshError } = await supabase.auth.refreshSession();
+        
+        if (!refreshError && refreshedSession) {
+          console.log('Session recovered successfully');
+          sessionRecoveryAttempted = false;
+          return refreshedSession;
+        }
+      }
+      
+      return null;
+    }
+    
+    sessionRecoveryAttempted = false;
+    return session;
+  } catch (error) {
+    console.error('Error ensuring session:', error);
+    return null;
+  }
+};
 
 // Connection health checker
 export const testConnection = async (): Promise<{ success: boolean; latency: number; error?: string }> => {

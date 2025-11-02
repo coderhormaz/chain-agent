@@ -251,20 +251,39 @@ export class AuthService {
     }
   }
 
-  // Get current session
+  // Get current session - with automatic refresh if expired
   static async getCurrentSession() {
     try {
+      console.log('[AuthService] Getting current session...');
+      
+      // First try to refresh the session to ensure we have a valid token
+      const { data: { session: refreshedSession }, error: refreshError } = await supabase.auth.refreshSession();
+      
+      if (!refreshError && refreshedSession?.user) {
+        console.log('[AuthService] ✅ Session refreshed successfully');
+        const wallet = await this.getUserWallet(refreshedSession.user.id);
+        return { user: refreshedSession.user, wallet };
+      }
+      
+      // If refresh fails, try to get existing session
+      console.log('[AuthService] Refresh failed, trying getSession...');
       const { data: { session }, error } = await supabase.auth.getSession();
-      if (error) throw error;
+      
+      if (error) {
+        console.error('[AuthService] getSession error:', error);
+        throw error;
+      }
       
       if (session?.user) {
+        console.log('[AuthService] ✅ Got existing session');
         const wallet = await this.getUserWallet(session.user.id);
         return { user: session.user, wallet };
       }
 
+      console.log('[AuthService] No session found');
       return { user: null, wallet: null };
     } catch (error) {
-      console.error('Session error:', error);
+      console.error('[AuthService] Session error:', error);
       return { user: null, wallet: null };
     }
   }

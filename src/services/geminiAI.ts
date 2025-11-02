@@ -1,4 +1,5 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { ContactService } from "./contactService";
 
 // Types for structured blockchain actions
 export interface BlockchainAction {
@@ -29,6 +30,8 @@ export interface TransactionDetails {
   recipient?: string;
   amount?: string;
   token?: string; // 'BNB' or token address
+  contactName?: string; // If resolved from a contact
+  recipientDisplayName?: string; // For showing in UI
 }
 
 class GeminiAIService {
@@ -56,9 +59,11 @@ class GeminiAIService {
       const result = await this.model.generateContent(prompt);
       const response = result.response;
       const text = response.text();
+      
+      console.log('[GeminiAI] 📥 Raw AI Response:', text);
 
       // Parse the AI response to extract structured data
-      const parsedResponse = this.parseAIResponse(text);
+      const parsedResponse = await this.parseAIResponse(text);
       
       // If this is an upload_nft action, try to extract NFT details from the original input
       // Only do this if the input contains more than just basic commands
@@ -108,7 +113,7 @@ REQUIRED FIELDS:
 - create_token: name, symbol, totalSupply (decimals auto-set to 18)
 - mint_nft: ALWAYS start with upload_nft first, then ask for name/description after upload
 - upload_nft: No fields needed, show upload button immediately, BUT extract NFT name/description ONLY if actual names provided (NOT commands like "mint nft")
-- send_transaction: recipient (0x address), amount, token (default: BNB)
+- send_transaction: recipient (contact name OR 0x address), amount, token (default: BNB)
 
 JSON FORMAT:
 \`\`\`json
@@ -131,9 +136,10 @@ RULES:
 3. For NFT: ALWAYS use upload_nft first, never ask for details before upload
 4. Extract NFT name/description ONLY from actual names, NOT from commands (e.g., "name hormaz description cool nft" ✓, "mint nft" ✗)
 5. Commands like "mint nft", "create nft" should NOT populate name/description fields
-6. Ask for missing fields conversationally
-7. Set isComplete=true when all required fields present
-8. Keep responses brief and friendly
+6. For send_transaction: Extract recipient name as-is (e.g., "send to hormazd" → recipient: "hormazd"). System will lookup contact automatically.
+7. Ask for missing fields conversationally
+8. Set isComplete=true when all required fields present
+9. Keep responses brief and friendly
 
 Context: ${JSON.stringify(context)}
 Input: "${userInput}"
@@ -144,11 +150,11 @@ Respond with JSON:`;
   }
 
   // Parse AI response and extract structured data
-  private parseAIResponse(aiResponse: string): {
+  private async parseAIResponse(aiResponse: string): Promise<{
     response: string;
     action: BlockchainAction | null;
     requiresConfirmation: boolean;
-  } {
+  }> {
     try {
       // Extract JSON from markdown code blocks
       const jsonMatch = aiResponse.match(/```json\n([\s\S]*?)\n```/);
@@ -162,6 +168,7 @@ Respond with JSON:`;
       }
 
       const parsedJson = JSON.parse(jsonMatch[1]);
+      console.log('[GeminiAI] 📊 Parsed JSON action:', parsedJson.action);
       
       // Set default values for token creation with AI intelligence
       if (parsedJson.action?.action === 'create_token') {
@@ -192,9 +199,46 @@ Respond with JSON:`;
           txDetails.token = 'BNB';
         }
         
+        // Check if recipient is a wallet address or a contact name
+        let recipientAddress = txDetails.recipient;
+        let contactName = null;
+        let recipientDisplayName = txDetails.recipient;
+        
+        console.log('[GeminiAI] Original recipient from AI:', recipientAddress);
+        console.log('[GeminiAI] Is wallet address?', /^0x[a-fA-F0-9]{40}$/.test(recipientAddress));
+        
+        // If recipient doesn't look like a wallet address, try to find it in contacts
+        if (recipientAddress && !/^0x[a-fA-F0-9]{40}$/.test(recipientAddress)) {
+          try {
+            console.log('[GeminiAI] 🔍 Not a wallet address, searching for contact:', recipientAddress);
+            const contact = await ContactService.searchContactByName(recipientAddress);
+            
+            if (contact) {
+              console.log('[GeminiAI] ✅ Contact found:', contact.contact_name, '->', contact.wallet_address);
+              recipientAddress = contact.wallet_address;
+              contactName = contact.contact_name;
+              recipientDisplayName = contact.contact_name;
+              txDetails.recipient = recipientAddress; // Update with actual address
+              txDetails.contactName = contactName;
+              txDetails.recipientDisplayName = recipientDisplayName;
+            } else {
+              console.log('[GeminiAI] ❌ No contact found with name:', recipientAddress);
+              console.log('[GeminiAI] Available contacts should be checked in the database');
+              // Keep the original value, will be marked as missing field
+            }
+          } catch (error) {
+            console.error('[GeminiAI] Error looking up contact:', error);
+            // Continue with validation, will fail if not a valid address
+          }
+        } else {
+          console.log('[GeminiAI] Recipient is already a valid wallet address');
+        }
+        
         // Validate required fields
         const missingFields = [];
-        if (!txDetails.recipient) missingFields.push('recipient');
+        if (!txDetails.recipient || !/^0x[a-fA-F0-9]{40}$/.test(txDetails.recipient)) {
+          missingFields.push('recipient');
+        }
         if (!txDetails.amount) missingFields.push('amount');
         
         parsedJson.action.missingFields = missingFields;
@@ -202,6 +246,8 @@ Respond with JSON:`;
         
         console.log('🔍 Send transaction validation:', {
           recipient: txDetails.recipient,
+          contactName: txDetails.contactName,
+          recipientDisplayName: txDetails.recipientDisplayName,
           amount: txDetails.amount,
           token: txDetails.token,
           missingFields,
@@ -354,11 +400,16 @@ Metadata will be stored on-chain. The NFT will be minted to your wallet.
         const transferGasEstimate = await BlockchainService.estimateGas('transfer');
         const transferGasCostUSD = await BlockchainService.getGasCostUSD('transfer');
         
+        // Build recipient display string
+        const recipientDisplay = txDetails.contactName 
+          ? `**${txDetails.contactName}** (\`${txDetails.recipient}\`)`
+          : `\`${txDetails.recipient}\``;
+        
         return `⚡ **Transaction Confirmation**
 
 You're about to send:
 • **Amount**: ${txDetails.amount} ${txDetails.token || 'BNB'}
-• **To**: \`${txDetails.recipient}\`
+• **To**: ${recipientDisplay}
 • **From**: Your connected wallet
 
 $ **Estimated Gas Cost**: ~${transferGasEstimate} BNB (${transferGasCostUSD})
