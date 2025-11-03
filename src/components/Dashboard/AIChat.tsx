@@ -456,7 +456,7 @@ Please try again with a different image or check your internet connection.`,
               <span></span>
               <span></span>
             </div>
-            <div className="typing-text">Gemini AI is thinking...</div>
+            <div className="typing-text">Chain Agent is thinking...</div>
           </motion.div>
         )}
         <div ref={messagesEndRef} />
