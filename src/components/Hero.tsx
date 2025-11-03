@@ -1,10 +1,8 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { ParticleBackground } from './ParticleBackground';
 import { useAuthModalStore } from '../store';
 import { useAuthStore } from '../store/authStore';
 import ShinyText from './ShinyText';
-import { SparklesCore } from './ui/sparkles';
 import { useNavigate } from 'react-router-dom';
 
 export const Hero: React.FC = () => {
@@ -86,22 +84,6 @@ export const Hero: React.FC = () => {
 
   return (
     <section id="hero" className="hero premium-hero">
-      <ParticleBackground />
-      
-      {/* Sparkles Background Layer */}
-      <div className="absolute inset-0 w-full h-full">
-        <SparklesCore
-          id="tsparticleshero"
-          background="transparent"
-          minSize={0.4}
-          maxSize={1.2}
-          particleDensity={80}
-          className="w-full h-full"
-          particleColor="#10b981"
-          speed={0.5}
-        />
-      </div>
-      
       <div className="hero-gradient-overlay"></div>
       
       <div className="container">
@@ -127,6 +109,20 @@ export const Hero: React.FC = () => {
               {renderAnimatedWords('command', 'gradient-text-green')}
             </span>
           </motion.h1>
+          
+          <motion.div
+            className="hero-accent-line"
+            variants={itemVariants}
+            style={{
+              height: '3px',
+              background: 'linear-gradient(90deg, transparent, #4ade80 20%, #4ade80 50%, #4ade80 80%, transparent)',
+              borderRadius: '2px',
+              margin: '24px auto',
+              maxWidth: '80%',
+              width: '100%',
+              boxShadow: '0 0 20px rgba(74, 222, 128, 0.6)'
+            }}
+          />
           
           <motion.div 
             className="hero-subtitle premium-subtitle"
