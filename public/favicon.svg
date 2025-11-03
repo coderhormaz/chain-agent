@@ -1,0 +1,60 @@
+<svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Premium gradient with depth -->
+    <linearGradient id="premium" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#34d399"/>
+      <stop offset="50%" style="stop-color:#10b981"/>
+      <stop offset="100%" style="stop-color:#059669"/>
+    </linearGradient>
+    
+    <!-- Subtle glow -->
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  
+  <!-- Pure black background -->
+  <rect width="128" height="128" fill="#000000"/>
+  
+  <!-- Ultra-premium "CA" monogram - SF Pro / Inter inspired -->
+  <g filter="url(#glow)">
+    <!-- Letter "C" - Refined curves, optical balance -->
+    <path d="M 52 32 
+             C 26 32 18 44 18 64 
+             C 18 84 26 96 52 96 
+             L 60 96 
+             L 60 84 
+             L 52 84 
+             C 34 84 30 76 30 64 
+             C 30 52 34 44 52 44 
+             L 60 44 
+             L 60 32 Z" 
+          fill="url(#premium)"
+          stroke="url(#premium)"
+          stroke-width="0.5"/>
+    
+    <!-- Letter "A" - Elegant apex, perfect weight distribution -->
+    <path d="M 87 32 
+             L 76 32 
+             L 58 96 
+             L 70 96 
+             L 74 84 
+             L 96 84 
+             L 100 96 
+             L 112 96 
+             Z 
+             M 78 74 
+             L 85 48 
+             L 92 74 Z" 
+          fill="url(#premium)"
+          stroke="url(#premium)"
+          stroke-width="0.5"/>
+  </g>
+  
+  <!-- Subtle highlight for depth -->
+  <rect x="24" y="38" width="80" height="2" fill="#34d399" opacity="0.15" rx="1"/>
+</svg>
