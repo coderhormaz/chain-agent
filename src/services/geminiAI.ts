@@ -1,5 +1,9 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import { ContactService } from "./contactService";
+
+// OpenRouter API configuration
+const OPENROUTER_API_KEY = import.meta.env.VITE_OPENROUTER_API_KEY;
+const OPENROUTER_MODEL = "qwen/qwen3-next-80b-a3b-instruct:free";
+const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
 
 // Types for structured blockchain actions
 export interface BlockchainAction {
@@ -35,17 +39,49 @@ export interface TransactionDetails {
 }
 
 class GeminiAIService {
-  private genAI: GoogleGenerativeAI;
-  private model: any;
+  private apiKey: string;
+  private model: string;
 
   constructor() {
-    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-    if (!apiKey) {
-      throw new Error('VITE_GEMINI_API_KEY is not set in environment variables');
-    }
+    this.apiKey = OPENROUTER_API_KEY;
+    this.model = OPENROUTER_MODEL;
     
-    this.genAI = new GoogleGenerativeAI(apiKey);
-    this.model = this.genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
+    if (!this.apiKey) {
+      throw new Error('OpenRouter API key is not configured');
+    }
+  }
+
+  // Call OpenRouter API
+  private async callOpenRouter(prompt: string): Promise<string> {
+    const response = await fetch(OPENROUTER_API_URL, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${this.apiKey}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": window.location.origin,
+        "X-Title": "opBNB AI Assistant"
+      },
+      body: JSON.stringify({
+        model: this.model,
+        messages: [
+          {
+            role: "user",
+            content: prompt
+          }
+        ],
+        temperature: 0.7,
+        max_tokens: 2048
+      })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('[OpenRouter] API Error:', response.status, errorText);
+      throw new Error(`OpenRouter API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data.choices[0]?.message?.content || '';
   }
 
   // Main method to process user input and extract blockchain actions
@@ -56,11 +92,9 @@ class GeminiAIService {
   }> {
     try {
       const prompt = this.buildPrompt(input, conversationContext);
-      const result = await this.model.generateContent(prompt);
-      const response = result.response;
-      const text = response.text();
+      const text = await this.callOpenRouter(prompt);
       
-      console.log('[GeminiAI] 📥 Raw AI Response:', text);
+      console.log('[OpenRouter] 📥 Raw AI Response:', text);
 
       // Parse the AI response to extract structured data
       const parsedResponse = await this.parseAIResponse(text);
@@ -89,7 +123,7 @@ class GeminiAIService {
       
       return parsedResponse;
     } catch (error) {
-      console.error('Gemini AI Error:', error);
+      console.error('OpenRouter AI Error:', error);
       return {
         response: 'I apologize, but I encountered an error processing your request. Please try again.',
         action: null,
@@ -156,8 +190,13 @@ Respond with JSON:`;
     requiresConfirmation: boolean;
   }> {
     try {
-      // Extract JSON from markdown code blocks
-      const jsonMatch = aiResponse.match(/```json\n([\s\S]*?)\n```/);
+      // Extract JSON from markdown code blocks or raw JSON
+      let jsonMatch = aiResponse.match(/```json\n([\s\S]*?)\n```/);
+      if (!jsonMatch) {
+        // Try to find raw JSON object
+        jsonMatch = aiResponse.match(/\{[\s\S]*"response"[\s\S]*\}/);
+      }
+      
       if (!jsonMatch) {
         // Fallback to plain response if no JSON structure found
         return {
@@ -167,8 +206,9 @@ Respond with JSON:`;
         };
       }
 
-      const parsedJson = JSON.parse(jsonMatch[1]);
-      console.log('[GeminiAI] 📊 Parsed JSON action:', parsedJson.action);
+      const jsonString = jsonMatch[1] || jsonMatch[0];
+      const parsedJson = JSON.parse(jsonString);
+      console.log('[OpenRouter] 📊 Parsed JSON action:', parsedJson.action);
       
       // Set default values for token creation with AI intelligence
       if (parsedJson.action?.action === 'create_token') {
@@ -204,17 +244,17 @@ Respond with JSON:`;
         let contactName = null;
         let recipientDisplayName = txDetails.recipient;
         
-        console.log('[GeminiAI] Original recipient from AI:', recipientAddress);
-        console.log('[GeminiAI] Is wallet address?', /^0x[a-fA-F0-9]{40}$/.test(recipientAddress));
+        console.log('[OpenRouter] Original recipient from AI:', recipientAddress);
+        console.log('[OpenRouter] Is wallet address?', /^0x[a-fA-F0-9]{40}$/.test(recipientAddress));
         
         // If recipient doesn't look like a wallet address, try to find it in contacts
         if (recipientAddress && !/^0x[a-fA-F0-9]{40}$/.test(recipientAddress)) {
           try {
-            console.log('[GeminiAI] 🔍 Not a wallet address, searching for contact:', recipientAddress);
+            console.log('[OpenRouter] 🔍 Not a wallet address, searching for contact:', recipientAddress);
             const contact = await ContactService.searchContactByName(recipientAddress);
             
             if (contact) {
-              console.log('[GeminiAI] ✅ Contact found:', contact.contact_name, '->', contact.wallet_address);
+              console.log('[OpenRouter] ✅ Contact found:', contact.contact_name, '->', contact.wallet_address);
               recipientAddress = contact.wallet_address;
               contactName = contact.contact_name;
               recipientDisplayName = contact.contact_name;
@@ -222,16 +262,16 @@ Respond with JSON:`;
               txDetails.contactName = contactName;
               txDetails.recipientDisplayName = recipientDisplayName;
             } else {
-              console.log('[GeminiAI] ❌ No contact found with name:', recipientAddress);
-              console.log('[GeminiAI] Available contacts should be checked in the database');
+              console.log('[OpenRouter] ❌ No contact found with name:', recipientAddress);
+              console.log('[OpenRouter] Available contacts should be checked in the database');
               // Keep the original value, will be marked as missing field
             }
           } catch (error) {
-            console.error('[GeminiAI] Error looking up contact:', error);
+            console.error('[OpenRouter] Error looking up contact:', error);
             // Continue with validation, will fail if not a valid address
           }
         } else {
-          console.log('[GeminiAI] Recipient is already a valid wallet address');
+          console.log('[OpenRouter] Recipient is already a valid wallet address');
         }
         
         // Validate required fields
@@ -244,6 +284,11 @@ Respond with JSON:`;
         parsedJson.action.missingFields = missingFields;
         parsedJson.action.isComplete = missingFields.length === 0;
         
+        // Set requiresConfirmation for complete send_transaction
+        if (parsedJson.action.isComplete) {
+          parsedJson.requiresConfirmation = true;
+        }
+        
         console.log('🔍 Send transaction validation:', {
           recipient: txDetails.recipient,
           contactName: txDetails.contactName,
@@ -251,7 +296,8 @@ Respond with JSON:`;
           amount: txDetails.amount,
           token: txDetails.token,
           missingFields,
-          isComplete: parsedJson.action.isComplete
+          isComplete: parsedJson.action.isComplete,
+          requiresConfirmation: parsedJson.requiresConfirmation
         });
       }
       
@@ -267,7 +313,14 @@ Respond with JSON:`;
             console.log('🎨 NFT details extracted from upload request:', details);
           }
         }
-      }      return {
+      }
+      
+      // Set requiresConfirmation for complete create_token
+      if (parsedJson.action?.action === 'create_token' && parsedJson.action.isComplete) {
+        parsedJson.requiresConfirmation = true;
+      }
+
+      return {
         response: parsedJson.response || aiResponse,
         action: parsedJson.action || null,
         requiresConfirmation: parsedJson.requiresConfirmation || false
@@ -315,8 +368,7 @@ Rules:
 - Remove command words like "name", "description", "call it", "called"
 - Keep the actual name/description content clean`;
 
-      const result = await this.model.generateContent(prompt);
-      const response = result.response.text();
+      const response = await this.callOpenRouter(prompt);
       
       // Extract JSON from response
       const jsonMatch = response.match(/\{[\s\S]*\}/) || response.match(/```json\n([\s\S]*?)\n```/);
