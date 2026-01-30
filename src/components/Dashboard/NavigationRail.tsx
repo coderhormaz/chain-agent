@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Zap, Box, Image, Wallet, Moon, Sun, LogOut, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Moon, Sun, LogOut, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { useTheme } from '../../contexts/ThemeContext';
+import { NAVIGATION_ITEMS } from '../../constants/navigation';
 
 interface NavigationRailProps {
   activeTab: string;
@@ -10,16 +11,9 @@ interface NavigationRailProps {
 }
 
 const NavigationRail: React.FC<NavigationRailProps> = ({ activeTab, setActiveTab }) => {
-  const { user, logout } = useAuthStore();
+  const { logout } = useAuthStore();
   const { theme, toggleTheme } = useTheme();
   const [isExpanded, setIsExpanded] = useState(false);
-
-  const navItems = [
-    { id: 'chat', label: 'AI Chat', icon: Zap },
-    { id: 'tokens', label: 'My Tokens', icon: Box },
-    { id: 'nfts', label: 'My NFTs', icon: Image },
-    { id: 'wallet', label: 'Wallet', icon: Wallet },
-  ];
 
   const handleSignOut = () => {
     logout();
@@ -60,7 +54,7 @@ const NavigationRail: React.FC<NavigationRailProps> = ({ activeTab, setActiveTab
 
       {/* Navigation Items */}
       <nav className="flex-1 py-6 px-3 space-y-2 overflow-y-auto">
-        {navItems.map((item) => {
+        {NAVIGATION_ITEMS.map((item) => {
           const Icon = item.icon;
           const isActive = activeTab === item.id;
 

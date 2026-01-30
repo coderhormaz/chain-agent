@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Zap, Box, Image, Wallet } from 'lucide-react';
+import { NAVIGATION_ITEMS } from '../../constants/navigation';
 
 interface BottomNavProps {
   activeTab: string;
@@ -8,17 +8,10 @@ interface BottomNavProps {
 }
 
 const BottomNav: React.FC<BottomNavProps> = ({ activeTab, setActiveTab }) => {
-  const navItems = [
-    { id: 'chat', label: 'AI Chat', icon: Zap },
-    { id: 'tokens', label: 'Tokens', icon: Box },
-    { id: 'nfts', label: 'NFTs', icon: Image },
-    { id: 'wallet', label: 'Wallet', icon: Wallet },
-  ];
-
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-white dark:bg-[#1E293B] border-t border-[#E2E8F0] dark:border-[#334155] safe-area-bottom">
       <div className="flex items-center justify-around h-[72px] px-2">
-        {navItems.map((item) => {
+        {NAVIGATION_ITEMS.map((item) => {
           const Icon = item.icon;
           const isActive = activeTab === item.id;
           
