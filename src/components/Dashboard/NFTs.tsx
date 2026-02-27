@@ -20,6 +20,7 @@ interface NFT {
 const NFTs: React.FC = () => {
   const { wallet } = useWalletStore();
   const [nfts, setNfts] = useState<NFT[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [showMintModal, setShowMintModal] = useState(false);
   const [isMinting, setIsMinting] = useState(false);
   const [mintingStage, setMintingStage] = useState<'idle' | 'uploading' | 'minting' | 'success' | 'error'>('idle');
@@ -38,9 +39,11 @@ const NFTs: React.FC = () => {
     const fetchNFTs = async () => {
       if (!wallet?.address) {
         console.log('No wallet connected, skipping NFT fetch');
+        setIsLoading(false);
         return;
       }
 
+      setIsLoading(true);
       try {
         console.log('Fetching NFTs for address:', wallet.address);
         const userNFTs = await BlockchainService.getUserNFTs(wallet.address);
@@ -73,7 +76,8 @@ const NFTs: React.FC = () => {
         setNfts(formattedNFTs);
       } catch (error) {
         console.error('Failed to fetch NFTs:', error);
-        // Don't show error to user, just log it
+      } finally {
+        setIsLoading(false);
       }
     };
 
@@ -238,41 +242,55 @@ const NFTs: React.FC = () => {
 
   return (
     <div className="nfts-container">
-      <div className="nfts-header">
-        <h1>My NFTs</h1>
-        <motion.button
-          className="mint-nft-btn"
+      <div className="page-header">
+        <h1>NFTs</h1>
+        <button
+          className="page-header-btn page-header-btn--primary"
           onClick={() => setShowMintModal(true)}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
         >
           + Mint NFT
-        </motion.button>
+        </button>
       </div>
 
       <div className="nfts-grid">
-        {nfts.length === 0 ? (
+        {isLoading ? (
+          [...Array(3)].map((_, i) => (
+            <div key={i} className="nft-card loading">
+              <div className="skeleton-image" />
+              <div className="nft-content">
+                <div className="skeleton-line w-60" style={{ marginBottom: '6px' }} />
+                <div className="skeleton-line w-80 h-8" />
+                <div className="nft-details" style={{ border: 'none', padding: '8px 0' }}>
+                  <div className="skeleton-line w-80 h-8" />
+                  <div className="skeleton-line w-60 h-8" style={{ marginTop: '4px' }} />
+                </div>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <div className="skeleton-line" style={{ flex: 1, height: '28px', borderRadius: '8px' }} />
+                  <div className="skeleton-line" style={{ flex: 1, height: '28px', borderRadius: '8px' }} />
+                </div>
+              </div>
+            </div>
+          ))
+        ) : nfts.length === 0 ? (
           <div className="no-nfts">
-            <div className="no-nfts-icon"><IoImage size={48} /></div>
-            <h3>No NFTs minted yet</h3>
-            <p>Create your first NFT with images on Lighthouse IPFS</p>
-            <motion.button
-              className="mint-first-nft-btn"
+            <div className="no-nfts-icon"><IoImage size={40} /></div>
+            <h3>No NFTs yet</h3>
+            <p>Mint your first NFT with Lighthouse IPFS</p>
+            <button
+              className="empty-state-btn"
               onClick={() => setShowMintModal(true)}
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
             >
-              Mint Your First NFT
-            </motion.button>
+              Mint NFT
+            </button>
           </div>
         ) : (
           nfts.map((nft, index) => (
             <motion.div
               key={nft.id}
               className="nft-card"
-              initial={{ opacity: 0, y: 20 }}
+              initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3, delay: index * 0.1 }}
+              transition={{ duration: 0.2, delay: index * 0.05 }}
             >
               <div className="nft-image">
                 <img 
@@ -336,22 +354,18 @@ const NFTs: React.FC = () => {
                 )}
 
                 <div className="nft-actions">
-                  <motion.button
+                  <button
                     className="action-btn primary"
                     onClick={() => window.open(`https://opbnb.bscscan.com/token/${nft.contractAddress}?a=${nft.tokenId}`, '_blank')}
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
                   >
-                    View on Explorer
-                  </motion.button>
-                  <motion.button
+                    Explorer
+                  </button>
+                  <button
                     className={`action-btn secondary ${copiedAddress === nft.contractAddress ? 'copied' : ''}`}
                     onClick={() => copyToClipboard(nft.contractAddress)}
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
                   >
-                    {copiedAddress === nft.contractAddress ? <><IoCheckmarkCircle /> Contract Copied!</> : <><IoCopy /> Copy Contract</>}
-                  </motion.button>
+                    {copiedAddress === nft.contractAddress ? <><IoCheckmarkCircle /> Copied</> : <><IoCopy /> Copy</>}
+                  </button>
                 </div>
               </div>
             </motion.div>

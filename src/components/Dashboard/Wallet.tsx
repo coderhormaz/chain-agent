@@ -198,45 +198,38 @@ const Wallet: React.FC = () => {
 
   return (
     <div className="wallet-container">
-      <div className="wallet-header">
-        <h1>My Wallet</h1>
-        <motion.button
-          className="refresh-btn"
+      <div className="page-header">
+        <div className="page-header-left">
+          <h1>Wallet</h1>
+          <span className="page-header-badge">opBNB Mainnet</span>
+        </div>
+        <button
+          className="page-header-btn"
           onClick={fetchBalance}
           disabled={isLoadingBalance}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
         >
-          {isLoadingBalance ? '⟳' : '↻'} Refresh
-        </motion.button>
+          <IoRefresh size={15} />
+          Refresh
+        </button>
       </div>
 
       <div className="wallet-cards">
         {/* Balance Card */}
         <motion.div
-          className="wallet-card balance-card"
-          initial={{ opacity: 0, y: 20 }}
+          className="dash-card"
+          initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3 }}
+          transition={{ duration: 0.25 }}
         >
-          <h3 style={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            justifyContent: 'space-between',
-            marginBottom: 'var(--space-4)',
-            flexWrap: 'wrap',
-            gap: 'var(--space-3)'
-          }}>
-            <span style={{ fontSize: 'var(--text-xl)', fontWeight: '600' }}>Wallet Balance</span>
+          <div className="dash-card-header">
+            <span className="dash-card-label">Balance</span>
             {bnbPrice && (
               <span className="bnb-price-indicator">
-                {bnbPrice.change24h >= 0 ? <IoTrendingUp /> : <IoTrendingDown />} ${bnbPrice.price.toLocaleString('en-US', { 
-                  minimumFractionDigits: 0, 
-                  maximumFractionDigits: 0 
-                })}
+                {bnbPrice.change24h >= 0 ? <IoTrendingUp size={14} /> : <IoTrendingDown size={14} />}
+                ${bnbPrice.price.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
               </span>
             )}
-          </h3>
+          </div>
           <div className="balance-amount">
             {isLoadingBalance ? (
               <div className="loading">Loading...</div>
@@ -244,75 +237,59 @@ const Wallet: React.FC = () => {
               <span>{balance} BNB</span>
             )}
           </div>
-          <p className="balance-usd" style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            flexWrap: 'wrap',
-            gap: 'var(--space-3)',
-            marginTop: 'var(--space-3)'
-          }}>
-            <span style={{ fontSize: 'var(--text-lg)', fontWeight: '600' }}>
+          <div className="dash-card-footer">
+            <span className="balance-usd-value">
               {isLoadingPrice ? 'Loading price...' : balanceUSD}
             </span>
             {bnbPrice && (
               <span className={`price-change ${bnbPrice.change24h >= 0 ? 'positive' : 'negative'}`}>
-                {bnbPrice.change24h >= 0 ? ' (+' : ' ('}
-                {bnbPrice.change24h.toFixed(2)}% 24h)
+                {bnbPrice.change24h >= 0 ? '+' : ''}
+                {bnbPrice.change24h.toFixed(2)}% 24h
               </span>
             )}
-          </p>
+          </div>
         </motion.div>
 
         {/* Address Card */}
         <motion.div
-          className="wallet-card address-card"
-          initial={{ opacity: 0, y: 20 }}
+          className="dash-card"
+          initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3, delay: 0.1 }}
+          transition={{ duration: 0.25, delay: 0.05 }}
         >
-          <h3>Wallet Address</h3>
+          <div className="dash-card-header">
+            <span className="dash-card-label">Address</span>
+          </div>
           <div className="address-display">
             <span className="address-text">
               {wallet?.address ? shortenAddress(wallet.address) : 'Not connected'}
             </span>
             {wallet?.address && (
-              <motion.button
+              <button
                 className={`copy-btn ${copiedText === wallet.address ? 'copied' : ''}`}
                 onClick={() => copyToClipboard(wallet.address)}
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.9 }}
-                title={copiedText === wallet.address ? "Address Copied!" : "Copy Wallet Address"}
+                title={copiedText === wallet.address ? "Copied!" : "Copy"}
               >
-                {copiedText === wallet.address ? <IoCheckmarkCircle /> : <IoCopy />}
-              </motion.button>
+                {copiedText === wallet.address ? <IoCheckmarkCircle size={16} /> : <IoCopy size={16} />}
+              </button>
             )}
           </div>
           <div className="wallet-actions">
-            <motion.button
-              className="action-btn primary"
-              onClick={() => setShowSendModal(true)}
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-            >
+            <button className="action-btn primary" onClick={() => setShowSendModal(true)}>
               Send BNB
-            </motion.button>
-            <motion.button
+            </button>
+            <button
               className="action-btn secondary"
               onClick={() => window.open(`https://opbnb.bscscan.com/address/${wallet?.address}`, '_blank')}
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
             >
-              View on Explorer
-            </motion.button>
-            <motion.button
+              Explorer
+            </button>
+            <button
               className="action-btn danger"
               onClick={showPrivateKeyModal}
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
             >
-              <IoEye /> Reveal Private Key
-            </motion.button>
+              <IoEye size={15} /> Reveal Key
+            </button>
           </div>
         </motion.div>
       </div>
@@ -320,22 +297,20 @@ const Wallet: React.FC = () => {
       {/* Transactions */}
       <motion.div
         className="transactions-section"
-        initial={{ opacity: 0, y: 20 }}
+        initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3, delay: 0.2 }}
+        transition={{ duration: 0.25, delay: 0.1 }}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div className="section-header">
           <h3>Recent Transactions</h3>
-          <motion.button
-            className="refresh-btn"
+          <button
+            className="page-header-btn"
             onClick={fetchTransactions}
             disabled={isLoadingTransactions}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            style={{ fontSize: '0.9rem', padding: '0.5rem 1rem' }}
           >
-            {isLoadingTransactions ? '⟳' : '↻'} Refresh
-          </motion.button>
+            <IoRefresh size={14} />
+            Refresh
+          </button>
         </div>
         <div className="transactions-list">
           {isLoadingTransactions ? (

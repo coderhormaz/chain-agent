@@ -1,14 +1,49 @@
-import React from 'react';
-import { motion } from 'framer-motion';
+import React, { useRef } from 'react';
+import { motion, useScroll, useTransform, useSpring } from 'framer-motion';
 import { useAuthModalStore } from '../store';
 import { useAuthStore } from '../store/authStore';
-import ShinyText from './ShinyText';
 import { useNavigate } from 'react-router-dom';
 
+/* ── animation config ── */
+const ease = [0.22, 1, 0.36, 1] as const;
+
+const wordVariants = {
+  hidden: { y: 40, opacity: 0, filter: 'blur(6px)' },
+  visible: (i: number) => ({
+    y: 0,
+    opacity: 1,
+    filter: 'blur(0px)',
+    transition: { duration: 1.2, ease, delay: 0.5 + i * 0.12 },
+  }),
+};
+
+const fadeUp = (delay = 0) => ({
+  hidden: { y: 24, opacity: 0 },
+  visible: {
+    y: 0,
+    opacity: 1,
+    transition: { duration: 0.9, ease, delay },
+  },
+});
+
+/* ── component ── */
 export const Hero: React.FC = () => {
   const { openLogin } = useAuthModalStore();
   const { isAuthenticated } = useAuthStore();
   const navigate = useNavigate();
+  const heroRef = useRef<HTMLElement>(null);
+
+  /* scroll‑driven parallax */
+  const { scrollYProgress } = useScroll({
+    target: heroRef,
+    offset: ['start start', 'end start'],
+  });
+  const smoothProgress = useSpring(scrollYProgress, { stiffness: 60, damping: 20 });
+  const bgY = useTransform(smoothProgress, [0, 1], ['0%', '30%']);
+  const contentY = useTransform(smoothProgress, [0, 1], ['0%', '18%']);
+  const contentOpacity = useTransform(smoothProgress, [0, 0.6], [1, 0]);
+  const orb1Y = useTransform(smoothProgress, [0, 1], ['0%', '50%']);
+  const orb2Y = useTransform(smoothProgress, [0, 1], ['0%', '-40%']);
 
   const handlePrimaryAction = () => {
     if (isAuthenticated) {
@@ -18,146 +53,129 @@ export const Hero: React.FC = () => {
     }
   };
 
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: {
-        delayChildren: 0.3,
-        staggerChildren: 0.2
-      }
-    }
-  };
+  /* title words — accent words get a special class */
+  const titleLines: { text: string; accent?: boolean }[][] = [
+    [
+      { text: 'Build' },
+      { text: 'on' },
+      { text: 'blockchain', accent: true },
+    ],
+    [
+      { text: 'with' },
+      { text: 'a' },
+      { text: 'single' },
+      { text: 'command', accent: true },
+    ],
+  ];
 
-  const itemVariants = {
-    hidden: { y: 20, opacity: 0 },
-    visible: {
-      y: 0,
-      opacity: 1,
-      transition: {
-        duration: 0.8,
-        ease: [0.6, -0.05, 0.01, 0.99] as const
-      }
-    }
-  };
-
-  const titleVariants = {
-    hidden: {},
-    visible: {
-      transition: {
-        staggerChildren: 0.25,
-        delayChildren: 0.6
-      }
-    }
-  };
-
-  const wordVariants = {
-    hidden: { 
-      y: 60, 
-      opacity: 0,
-      filter: 'blur(4px)'
-    },
-    visible: {
-      y: 0,
-      opacity: 1,
-      filter: 'blur(0px)',
-      transition: {
-        duration: 1.5,
-        ease: [0.22, 1, 0.36, 1] as const
-      }
-    }
-  };
-
-  const renderAnimatedWords = (text: string, className?: string) => {
-    const words = text.split(' ');
-    return words.map((word, index) => (
-      <motion.span
-        key={`${word}-${index}`}
-        variants={wordVariants}
-        style={{ display: 'inline-block', marginRight: '0.3em' }}
-        className={className}
-      >
-        {word}
-      </motion.span>
-    ));
-  };
+  let wordIndex = 0;
 
   return (
-    <section id="hero" className="hero premium-hero">
-      <div className="hero-gradient-overlay"></div>
-      
+    <section id="hero" className="hero-section" ref={heroRef}>
+      {/* ── background layers ── */}
+      <motion.div className="hero-bg" style={{ y: bgY }} />
+
+      {/* gradient orbs */}
+      <motion.div className="hero-orb hero-orb--1" style={{ y: orb1Y }} />
+      <motion.div className="hero-orb hero-orb--2" style={{ y: orb2Y }} />
+
+      {/* noise / grain overlay */}
+      <div className="hero-noise" />
+
+      {/* fine grid */}
+      <div className="hero-grid" />
+
+      {/* ── content ── */}
       <div className="container">
         <motion.div
           className="hero-content"
-          variants={containerVariants}
-          initial="hidden"
-          animate="visible"
+          style={{ y: contentY, opacity: contentOpacity }}
         >
-          <motion.h1 
-            className="hero-title premium-title"
-            variants={titleVariants}
+          {/* badge */}
+          <motion.div
+            className="hero-badge"
+            variants={fadeUp(0.2)}
             initial="hidden"
             animate="visible"
-            style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center' }}
           >
-            <span style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', width: '100%' }}>
-              {renderAnimatedWords('Build on')}
-              {renderAnimatedWords('blockchain', 'gradient-text-green')}
-            </span>
-            <span style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', width: '100%' }}>
-              {renderAnimatedWords('with a single')}
-              {renderAnimatedWords('command', 'gradient-text-green')}
-            </span>
-          </motion.h1>
-          
-          <motion.div
-            className="hero-accent-line"
-            variants={itemVariants}
-            style={{
-              height: '3px',
-              background: 'linear-gradient(90deg, transparent, #4ade80 20%, #4ade80 50%, #4ade80 80%, transparent)',
-              borderRadius: '2px',
-              margin: '24px auto',
-              maxWidth: '80%',
-              width: '100%',
-              boxShadow: '0 0 20px rgba(74, 222, 128, 0.6)'
-            }}
-          />
-          
-          <motion.div 
-            className="hero-subtitle premium-subtitle"
-            variants={itemVariants}
-          >
-            <ShinyText text="Deploy smart contracts, create tokens, and mint NFTs using AI on opBNB." speed={6} />
-            <br />
-            <ShinyText text="Experience ultra-low fees and lightning-fast transactions with our intelligent assistant." speed={6} />
+            <span className="hero-badge__dot" />
+            <span>Powered by opBNB</span>
           </motion.div>
-          
-          <motion.div 
-            className="hero-actions premium-actions"
-            variants={itemVariants}
+
+          {/* title */}
+          <h1 className="hero-title">
+            {titleLines.map((line, li) => (
+              <span className="hero-title__line" key={li}>
+                {line.map((w) => {
+                  const i = wordIndex++;
+                  return (
+                    <motion.span
+                      key={i}
+                      className={`hero-title__word${w.accent ? ' hero-title__accent' : ''}`}
+                      variants={wordVariants}
+                      custom={i}
+                      initial="hidden"
+                      animate="visible"
+                    >
+                      {w.text}
+                    </motion.span>
+                  );
+                })}
+              </span>
+            ))}
+          </h1>
+
+          {/* subtitle */}
+          <motion.p
+            className="hero-subtitle"
+            variants={fadeUp(1.6)}
+            initial="hidden"
+            animate="visible"
           >
-            <motion.button 
-              className="btn-hero-primary"
+            Deploy smart contracts, create tokens, and mint NFTs using
+            AI&nbsp;&mdash;&nbsp;with ultra&#8209;low fees and lightning&#8209;fast
+            transactions.
+          </motion.p>
+
+          {/* actions */}
+          <motion.div
+            className="hero-actions"
+            variants={fadeUp(1.9)}
+            initial="hidden"
+            animate="visible"
+          >
+            <motion.button
+              className="hero-btn hero-btn--primary"
               onClick={handlePrimaryAction}
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
+              whileHover={{ scale: 1.04, y: -2 }}
+              whileTap={{ scale: 0.97 }}
             >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M13 10V3L4 14h7v7l9-11h-7z"/>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M13 10V3L4 14h7v7l9-11h-7z" />
               </svg>
-              <span>{isAuthenticated ? 'Go to Dashboard' : 'Get Started Free'}</span>
+              {isAuthenticated ? 'Go to Dashboard' : 'Get Started Free'}
             </motion.button>
-            <motion.button 
-              className="btn-hero-secondary"
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
+
+            <motion.button
+              className="hero-btn hero-btn--ghost"
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.97 }}
             >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                <polygon points="5,3 19,12 5,21"/>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polygon points="5 3 19 12 5 21 5 3" />
               </svg>
-              <span>Watch Demo</span>
+              Watch Demo
             </motion.button>
+          </motion.div>
+
+          {/* scroll indicator */}
+          <motion.div
+            className="hero-scroll-indicator"
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 2.6, duration: 0.8, ease }}
+          >
+            <span className="hero-scroll-indicator__line" />
           </motion.div>
         </motion.div>
       </div>

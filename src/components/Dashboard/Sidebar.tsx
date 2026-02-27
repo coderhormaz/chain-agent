@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Zap, Box, Image, Wallet, Moon, Sun, LogOut } from 'lucide-react';
+import { Zap, Box, Image, Wallet, Moon, Sun, LogOut, CircleDot } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { useTheme } from '../../contexts/ThemeContext';
 import '../../styles/dashboard.css';
@@ -15,10 +15,10 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => {
   const { theme, toggleTheme } = useTheme();
 
   const menuItems = [
-    { id: 'chat', label: 'AI Chat', icon: <Zap size={20} strokeWidth={2.5} /> },
-    { id: 'tokens', label: 'My Tokens', icon: <Box size={20} strokeWidth={2.5} /> },
-    { id: 'nfts', label: 'My NFTs', icon: <Image size={20} strokeWidth={2.5} /> },
-    { id: 'wallet', label: 'Wallet', icon: <Wallet size={20} strokeWidth={2.5} /> }
+    { id: 'chat', label: 'AI Chat', icon: <Zap size={18} strokeWidth={2} /> },
+    { id: 'tokens', label: 'Tokens', icon: <Box size={18} strokeWidth={2} /> },
+    { id: 'nfts', label: 'NFTs', icon: <Image size={18} strokeWidth={2} /> },
+    { id: 'wallet', label: 'Wallet', icon: <Wallet size={18} strokeWidth={2} /> }
   ];
 
   const handleSignOut = () => {
@@ -26,27 +26,27 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => {
     window.location.href = '/';
   };
 
+  const displayName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User';
+  const initials = displayName.charAt(0).toUpperCase();
+
   return (
     <motion.aside 
       className="dashboard-sidebar"
-      initial={{ x: -300, opacity: 0 }}
+      initial={{ x: -280, opacity: 0 }}
       animate={{ x: 0, opacity: 1 }}
-      transition={{ duration: 0.5 }}
+      transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
     >
-      {/* Logo Section */}
+      {/* Brand */}
       <div className="sidebar-header">
-        <motion.div 
-          className="sidebar-logo"
-          whileHover={{ scale: 1.05 }}
-          transition={{ type: "spring", stiffness: 400, damping: 17 }}
-        >
+        <div className="sidebar-logo">
           <span className="logo-icon">⚡</span>
           <h2 className="logo-text">opBNB AI</h2>
-        </motion.div>
+        </div>
       </div>
 
-      {/* Navigation Menu */}
+      {/* Navigation */}
       <nav className="sidebar-nav">
+        <div className="nav-section-label">Menu</div>
         {menuItems.map((item) => (
           <button
             key={item.id}
@@ -55,46 +55,48 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => {
           >
             <span className="nav-icon">{item.icon}</span>
             <span className="nav-label">{item.label}</span>
+            {activeTab === item.id && (
+              <motion.div
+                className="nav-active-indicator"
+                layoutId="activeTab"
+                transition={{ type: "spring", stiffness: 380, damping: 30 }}
+              />
+            )}
           </button>
         ))}
       </nav>
 
-      {/* User Section */}
+      {/* Footer */}
       <div className="sidebar-footer">
-        <div className="user-info">
-          <div className="user-details">
-            <p className="user-name">{user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User'}</p>
-            <p className="user-email">{user?.email}</p>
-            <p className="user-status">Connected</p>
+        {/* User Card */}
+        <div className="sidebar-user-card">
+          <div className="sidebar-user-avatar">{initials}</div>
+          <div className="sidebar-user-meta">
+            <span className="sidebar-user-name">{displayName}</span>
+            <span className="sidebar-user-status">
+              <CircleDot size={10} />
+              Connected
+            </span>
           </div>
         </div>
-        
-        {/* Theme Toggle */}
-        <button
-          className="theme-toggle-btn"
-          onClick={toggleTheme}
-          title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
-        >
-          {theme === 'dark' ? (
-            <>
-              <Sun size={18} strokeWidth={2.5} />
-              <span>Light Mode</span>
-            </>
-          ) : (
-            <>
-              <Moon size={18} strokeWidth={2.5} />
-              <span>Dark Mode</span>
-            </>
-          )}
-        </button>
-        
-        <button
-          className="sign-out-btn"
-          onClick={handleSignOut}
-        >
-          <LogOut size={18} strokeWidth={2.5} />
-          <span>Sign Out</span>
-        </button>
+
+        {/* Action Row */}
+        <div className="sidebar-actions">
+          <button
+            className="sidebar-action-btn"
+            onClick={toggleTheme}
+            title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+          >
+            {theme === 'dark' ? <Sun size={16} strokeWidth={2} /> : <Moon size={16} strokeWidth={2} />}
+          </button>
+          <button
+            className="sidebar-action-btn sidebar-action-btn--danger"
+            onClick={handleSignOut}
+            title="Sign out"
+          >
+            <LogOut size={16} strokeWidth={2} />
+          </button>
+        </div>
       </div>
     </motion.aside>
   );

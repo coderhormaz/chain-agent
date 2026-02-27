@@ -150,39 +150,35 @@ const Tokens: React.FC = () => {
 
   return (
     <div className="tokens-container">
-      <div className="tokens-header">
-        <h1>My Tokens</h1>
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-          <motion.button
-            className="create-token-btn"
+      <div className="page-header">
+        <h1>Tokens</h1>
+        <div className="page-header-actions">
+          <button
+            className="page-header-btn"
             onClick={fetchUserTokens}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
             disabled={isLoading || !wallet}
-            style={{ padding: '10px 20px' }}
           >
-            <IoRefresh /> Refresh
-          </motion.button>
-          <motion.button
-            className="create-token-btn"
+            <IoRefresh size={15} /> Refresh
+          </button>
+          <button
+            className="page-header-btn page-header-btn--primary"
             onClick={() => setShowCreateModal(true)}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
             disabled={!wallet}
           >
             + Create Token
-          </motion.button>
+          </button>
         </div>
       </div>
 
       {error && (
         <div className="error-message" style={{ 
-          padding: '15px', 
-          marginBottom: '20px', 
-          backgroundColor: 'rgba(239, 68, 68, 0.1)', 
-          border: '1px solid rgba(239, 68, 68, 0.3)', 
-          borderRadius: '8px',
-          color: '#ef4444'
+          padding: '12px 16px', 
+          marginBottom: '16px', 
+          backgroundColor: 'rgba(239, 68, 68, 0.08)', 
+          border: '1px solid rgba(239, 68, 68, 0.2)', 
+          borderRadius: '10px',
+          color: '#ef4444',
+          fontSize: '13px'
         }}>
           ⚠️ {error}
         </div>
@@ -190,40 +186,64 @@ const Tokens: React.FC = () => {
 
       {!wallet ? (
         <div className="no-tokens">
-          <div className="no-tokens-icon"><IoWallet size={48} /></div>
+          <div className="no-tokens-icon"><IoWallet size={40} /></div>
           <h3>Wallet Not Connected</h3>
-          <p>Please connect your wallet to view your tokens</p>
+          <p>Connect your wallet to view tokens</p>
         </div>
       ) : isLoading ? (
-        <div className="no-tokens">
-          <div className="no-tokens-icon"><IoTime size={48} /></div>
-          <h3>Loading your tokens...</h3>
-          <p>Fetching data from blockchain</p>
+        <div className="tokens-grid">
+          {[...Array(3)].map((_, i) => (
+            <div key={i} className="token-card loading">
+              <div className="token-header">
+                <div className="skeleton-circle" />
+                <div className="token-info" style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <div className="skeleton-line w-60" />
+                  <div className="skeleton-line w-40 h-8" />
+                </div>
+              </div>
+              <div className="token-details">
+                <div className="token-detail">
+                  <div className="skeleton-line w-40 h-8" />
+                  <div className="skeleton-line w-60 h-8" />
+                </div>
+                <div className="token-detail">
+                  <div className="skeleton-line w-40 h-8" />
+                  <div className="skeleton-line w-40 h-8" />
+                </div>
+                <div className="token-detail">
+                  <div className="skeleton-line w-40 h-8" />
+                  <div className="skeleton-line w-60 h-8" />
+                </div>
+              </div>
+              <div className="token-actions">
+                <div className="skeleton-line" style={{ flex: 1, height: '28px', borderRadius: '8px' }} />
+                <div className="skeleton-line" style={{ flex: 1, height: '28px', borderRadius: '8px' }} />
+              </div>
+            </div>
+          ))}
         </div>
       ) : (
         <div className="tokens-grid">
           {tokens.length === 0 ? (
             <div className="no-tokens">
-              <div className="no-tokens-icon"><IoCube size={48} /></div>
-              <h3>No tokens created yet</h3>
+              <div className="no-tokens-icon"><IoCube size={40} /></div>
+              <h3>No tokens yet</h3>
               <p>Create your first BEP-20 token on opBNB</p>
-              <motion.button
-                className="create-first-token-btn"
+              <button
+                className="empty-state-btn"
                 onClick={() => setShowCreateModal(true)}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
               >
-                Create Your First Token
-              </motion.button>
+                Create Token
+              </button>
             </div>
           ) : (
           tokens.map((token, index) => (
             <motion.div
               key={token.id}
               className="token-card"
-              initial={{ opacity: 0, y: 20 }}
+              initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3, delay: index * 0.1 }}
+              transition={{ duration: 0.2, delay: index * 0.05 }}
             >
               <div className="token-header">
                 <div className="token-icon"><IoCube size={32} /></div>
@@ -260,22 +280,18 @@ const Tokens: React.FC = () => {
               </div>
 
               <div className="token-actions">
-                <motion.button
+                <button
                   className="action-btn primary"
                   onClick={() => window.open(`https://opbnb.bscscan.com/token/${token.contractAddress}`, '_blank')}
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
                 >
-                  View on Explorer
-                </motion.button>
-                <motion.button
+                  Explorer
+                </button>
+                <button
                   className={`action-btn secondary ${copiedAddress === token.contractAddress ? 'copied' : ''}`}
                   onClick={() => copyToClipboard(token.contractAddress)}
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
                 >
-                  {copiedAddress === token.contractAddress ? <><IoCheckmarkCircle /> Contract Copied!</> : <><IoCopy /> Copy Address</>}
-                </motion.button>
+                  {copiedAddress === token.contractAddress ? <><IoCheckmarkCircle /> Copied</> : <><IoCopy /> Copy</>}
+                </button>
               </div>
             </motion.div>
           ))
