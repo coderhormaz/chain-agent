@@ -2,8 +2,26 @@ import { ContactService } from "./contactService";
 
 // OpenRouter API configuration
 const OPENROUTER_API_KEY = import.meta.env.VITE_OPENROUTER_API_KEY;
-const OPENROUTER_MODEL = "qwen/qwen3-next-80b-a3b-instruct:free";
+const OPENROUTER_DEFAULT_MODEL = import.meta.env.VITE_OPENROUTER_MODEL || "qwen/qwen3-next-80b-a3b-instruct:free";
 const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
+
+// Available models for user selection
+export interface AIModel {
+  id: string;
+  name: string;
+  provider: string;
+  isFree: boolean;
+}
+
+export const AVAILABLE_MODELS: AIModel[] = [
+  { id: 'qwen/qwen3-next-80b-a3b-instruct:free', name: 'Qwen3 80B', provider: 'Qwen', isFree: true },
+  { id: 'deepseek/deepseek-chat-v3-0324:free', name: 'DeepSeek V3', provider: 'DeepSeek', isFree: true },
+  { id: 'google/gemini-2.0-flash-exp:free', name: 'Gemini 2.0 Flash', provider: 'Google', isFree: true },
+  { id: 'meta-llama/llama-4-maverick:free', name: 'Llama 4 Maverick', provider: 'Meta', isFree: true },
+  { id: 'google/gemma-3-27b-it:free', name: 'Gemma 3 27B', provider: 'Google', isFree: true },
+  { id: 'mistralai/mistral-small-3.1-24b-instruct:free', name: 'Mistral Small 3.1', provider: 'Mistral', isFree: true },
+  { id: 'microsoft/phi-4-reasoning-plus:free', name: 'Phi-4 Reasoning+', provider: 'Microsoft', isFree: true },
+];
 
 // Types for structured blockchain actions
 export interface BlockchainAction {
@@ -41,14 +59,33 @@ export interface TransactionDetails {
 class GeminiAIService {
   private apiKey: string;
   private model: string;
+  private onModelChangeCallbacks: Array<(model: string) => void> = [];
 
   constructor() {
     this.apiKey = OPENROUTER_API_KEY;
-    this.model = OPENROUTER_MODEL;
+    // Restore saved model or use default
+    this.model = localStorage.getItem('opbnb-ai-model') || OPENROUTER_DEFAULT_MODEL;
     
     if (!this.apiKey) {
       throw new Error('OpenRouter API key is not configured');
     }
+  }
+
+  getModel(): string {
+    return this.model;
+  }
+
+  setModel(modelId: string) {
+    this.model = modelId;
+    localStorage.setItem('opbnb-ai-model', modelId);
+    this.onModelChangeCallbacks.forEach(cb => cb(modelId));
+  }
+
+  onModelChange(callback: (model: string) => void) {
+    this.onModelChangeCallbacks.push(callback);
+    return () => {
+      this.onModelChangeCallbacks = this.onModelChangeCallbacks.filter(cb => cb !== callback);
+    };
   }
 
   // Call OpenRouter API

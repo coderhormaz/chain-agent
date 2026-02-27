@@ -3,7 +3,6 @@ import { motion } from 'framer-motion';
 import { Zap, Box, Image, Wallet, Moon, Sun, LogOut, CircleDot } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { useTheme } from '../../contexts/ThemeContext';
-import '../../styles/dashboard.css';
 
 interface SidebarProps {
   activeTab: string;
@@ -30,36 +29,42 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => {
   const initials = displayName.charAt(0).toUpperCase();
 
   return (
-    <motion.aside 
-      className="dashboard-sidebar"
+    <motion.aside
+      className="sidebar-root"
       initial={{ x: -280, opacity: 0 }}
       animate={{ x: 0, opacity: 1 }}
       transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
     >
       {/* Brand */}
-      <div className="sidebar-header">
-        <div className="sidebar-logo">
-          <span className="logo-icon">⚡</span>
-          <h2 className="logo-text">opBNB AI</h2>
-        </div>
+      <div className="sidebar-brand">
+        <div className="sidebar-brand-icon">⚡</div>
+        <h2 className="sidebar-brand-text">opBNB AI</h2>
       </div>
 
       {/* Navigation */}
-      <nav className="sidebar-nav">
-        <div className="nav-section-label">Menu</div>
+      <nav className="sidebar-navigation">
+        <div className="sidebar-section-label">Menu</div>
         {menuItems.map((item) => (
           <button
             key={item.id}
-            className={`nav-item ${activeTab === item.id ? 'active' : ''}`}
+            className={`sidebar-nav-item ${activeTab === item.id ? 'sidebar-nav-item--active' : ''}`}
             onClick={() => setActiveTab(item.id)}
           >
-            <span className="nav-icon">{item.icon}</span>
-            <span className="nav-label">{item.label}</span>
             {activeTab === item.id && (
               <motion.div
-                className="nav-active-indicator"
+                className="sidebar-nav-pill"
                 layoutId="activeTab"
                 transition={{ type: "spring", stiffness: 380, damping: 30 }}
+              />
+            )}
+            <span className="sidebar-nav-icon">{item.icon}</span>
+            <span className="sidebar-nav-label">{item.label}</span>
+            {activeTab === item.id && (
+              <motion.div
+                className="sidebar-nav-dot"
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ delay: 0.1 }}
               />
             )}
           </button>
@@ -67,34 +72,34 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => {
       </nav>
 
       {/* Footer */}
-      <div className="sidebar-footer">
+      <div className="sidebar-bottom">
         {/* User Card */}
-        <div className="sidebar-user-card">
-          <div className="sidebar-user-avatar">{initials}</div>
-          <div className="sidebar-user-meta">
-            <span className="sidebar-user-name">{displayName}</span>
+        <div className="sidebar-user">
+          <div className="sidebar-avatar">{initials}</div>
+          <div className="sidebar-user-info">
+            <span className="sidebar-username">{displayName}</span>
             <span className="sidebar-user-status">
-              <CircleDot size={10} />
+              <CircleDot size={8} />
               Connected
             </span>
           </div>
         </div>
 
         {/* Action Row */}
-        <div className="sidebar-actions">
+        <div className="sidebar-action-row">
           <button
             className="sidebar-action-btn"
             onClick={toggleTheme}
             title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
           >
-            {theme === 'dark' ? <Sun size={16} strokeWidth={2} /> : <Moon size={16} strokeWidth={2} />}
+            {theme === 'dark' ? <Sun size={15} strokeWidth={2} /> : <Moon size={15} strokeWidth={2} />}
           </button>
           <button
-            className="sidebar-action-btn sidebar-action-btn--danger"
+            className="sidebar-action-btn sidebar-action-btn--logout"
             onClick={handleSignOut}
             title="Sign out"
           >
-            <LogOut size={16} strokeWidth={2} />
+            <LogOut size={15} strokeWidth={2} />
           </button>
         </div>
       </div>

@@ -25,9 +25,9 @@ const Dashboard: React.FC = () => {
   };
 
   return (
-    <div className="dashboard-container">
+    <div className="dashboard-layout">
       <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
-      <main className="dashboard-main">
+      <main className={`dashboard-content ${activeTab === 'chat' ? 'dashboard-content--chat' : ''}`}>
         {renderContent()}
       </main>
     </div>

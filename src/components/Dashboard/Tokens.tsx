@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { IoCube, IoCopy, IoCheckmarkCircle, IoRefresh, IoWallet, IoTime } from 'react-icons/io5';
+import { IoCube, IoCopy, IoCheckmarkCircle, IoRefresh, IoWallet } from 'react-icons/io5';
 import { BlockchainService } from '../../services/blockchainService';
 import { useWalletStore } from '../../store/walletStore';
 import { WalletService } from '../../lib/wallet';

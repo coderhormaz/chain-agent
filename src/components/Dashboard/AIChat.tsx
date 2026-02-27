@@ -1,9 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { IoFlash, IoTrash, IoArrowForward } from 'react-icons/io5';
-import { Users } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { IoTrash, IoArrowForward, IoSparkles, IoWallet, IoImage, IoCube, IoSend, IoChevronDown } from 'react-icons/io5';
+import { Users, Bot, Zap, Cpu } from 'lucide-react';
 import { useConversationStore } from '../../store/conversationStore';
-import { geminiAI } from '../../services/geminiAI';
+import { geminiAI, AVAILABLE_MODELS } from '../../services/geminiAI';
 import { UploadButton, ImagePreview } from '../UploadButton';
 import MessageRenderer from '../MessageRenderer';
 import { ContactsModal } from './ContactsModal';
@@ -26,6 +26,9 @@ const AIChat: React.FC = () => {
   const [isWaitingForNFTDetails, setIsWaitingForNFTDetails] = useState(false);
   const [pendingNFTDetails, setPendingNFTDetails] = useState<{name?: string, description?: string} | null>(null);
   const [isContactsModalOpen, setIsContactsModalOpen] = useState(false);
+  const [selectedModel, setSelectedModel] = useState(geminiAI.getModel());
+  const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
+  const modelDropdownRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -35,6 +38,23 @@ const AIChat: React.FC = () => {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Close model dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (modelDropdownRef.current && !modelDropdownRef.current.contains(e.target as Node)) {
+        setIsModelDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleModelChange = (modelId: string) => {
+    geminiAI.setModel(modelId);
+    setSelectedModel(modelId);
+    setIsModelDropdownOpen(false);
+  };
 
   const handleSendMessage = async () => {
     // Prevent sending empty messages
@@ -380,17 +400,55 @@ Please try again with a different image or check your internet connection.`,
 
   return (
     <>
+      {/* ── Premium Chat Header ── */}
       <div className="chat-header">
         <div className="chat-title">
-          <span className="chat-icon"><IoFlash /></span>
-          <h2>AI Assistant</h2>
+          <div className="chat-header-avatar">
+            <Bot size={16} />
+            <span className="chat-header-pulse" />
+          </div>
+          <div className="chat-header-info">
+            <h2>Chain Agent</h2>
+            <span className="chat-header-status">
+              <span className="chat-status-dot" />
+              {isProcessing ? 'Thinking...' : 'Online'}
+            </span>
+          </div>
         </div>
         <div className="chat-actions">
+          {/* Model Selector */}
+          <div className="model-selector" ref={modelDropdownRef}>
+            <button
+              className="model-selector-trigger"
+              onClick={() => setIsModelDropdownOpen(!isModelDropdownOpen)}
+            >
+              <Cpu size={13} />
+              <span>{AVAILABLE_MODELS.find(m => m.id === selectedModel)?.name || 'Select Model'}</span>
+              <IoChevronDown size={12} className={`model-chevron ${isModelDropdownOpen ? 'open' : ''}`} />
+            </button>
+            {isModelDropdownOpen && (
+              <div className="model-dropdown">
+                {AVAILABLE_MODELS.map((model) => (
+                  <button
+                    key={model.id}
+                    className={`model-option ${model.id === selectedModel ? 'active' : ''}`}
+                    onClick={() => handleModelChange(model.id)}
+                  >
+                    <div className="model-option-info">
+                      <span className="model-option-name">{model.name}</span>
+                      <span className="model-option-provider">{model.provider}</span>
+                    </div>
+                    {model.isFree && <span className="model-free-badge">Free</span>}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           <button
             className="chat-action-btn"
             onClick={() => setIsContactsModalOpen(true)}
           >
-            <Users size={15} />
+            <Users size={14} />
             <span>Contacts</span>
           </button>
           <button
@@ -403,77 +461,136 @@ Please try again with a different image or check your internet connection.`,
         </div>
       </div>
 
+      {/* ── Messages Area ── */}
       <div className="chat-messages">
-        {messages.map((message) => (
-          <motion.div
-            key={message.id}
-            className={`message ${message.type} ${message.status || 'info'}`}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3 }}
-          >
-            <div className="message-content">
-              <MessageRenderer content={message.content} />
+        {/* Empty State */}
+        {messages.length === 0 && !isProcessing && (
+          <div className="chat-empty-state">
+            <div className="chat-empty-icon">
+              <IoSparkles size={28} />
             </div>
-            <div className="message-time">
-              {new Date(message.timestamp).toLocaleTimeString([], { 
-                hour: '2-digit', 
-                minute: '2-digit' 
-              })}
+            <h3 className="chat-empty-title">How can I help you today?</h3>
+            <p className="chat-empty-desc">
+              I can help you with blockchain operations on opBNB — send BNB, create tokens, mint NFTs, and more.
+            </p>
+            <div className="chat-suggestions">
+              {[
+                { icon: <IoSend size={14} />, label: 'Send BNB', prompt: 'Send 0.01 BNB to a wallet' },
+                { icon: <IoCube size={14} />, label: 'Create Token', prompt: 'Create a new token called MyToken' },
+                { icon: <IoImage size={14} />, label: 'Mint NFT', prompt: 'Mint an NFT with an image' },
+                { icon: <IoWallet size={14} />, label: 'Check Balance', prompt: 'What is my wallet balance?' },
+              ].map((suggestion) => (
+                <button
+                  key={suggestion.label}
+                  className="chat-suggestion-chip"
+                  onClick={() => {
+                    setInputValue(suggestion.prompt);
+                  }}
+                >
+                  <span className="chip-icon">{suggestion.icon}</span>
+                  <span>{suggestion.label}</span>
+                </button>
+              ))}
             </div>
-            {message.action && (
-              <div className="message-action-badge">
-                Action: {message.action.action}
+          </div>
+        )}
+
+        {/* Message List */}
+        <AnimatePresence initial={false}>
+          {messages.map((message) => (
+            <motion.div
+              key={message.id}
+              className={`chat-bubble ${message.type} ${message.status || 'info'}`}
+              initial={{ opacity: 0, y: 12, scale: 0.97 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{ duration: 0.25, ease: [0.25, 0.46, 0.45, 0.94] }}
+              layout
+            >
+              {/* AI Avatar */}
+              {message.type === 'ai' && (
+                <div className="bubble-avatar">
+                  <Zap size={12} />
+                </div>
+              )}
+
+              <div className="bubble-body">
+                <div className="bubble-content">
+                  <MessageRenderer content={message.content} />
+                </div>
+
+                <div className="bubble-meta">
+                  <span className="bubble-time">
+                    {new Date(message.timestamp).toLocaleTimeString([], { 
+                      hour: '2-digit', 
+                      minute: '2-digit' 
+                    })}
+                  </span>
+                  {message.action && (
+                    <span className="bubble-action-tag">
+                      <Zap size={9} />
+                      {message.action.action.replace('_', ' ')}
+                    </span>
+                  )}
+                </div>
+
+                {message.showUpload && (
+                  <UploadButton
+                    onUploadComplete={handleUploadComplete}
+                    onUploadError={handleUploadError}
+                    hasUploaded={message.hasUploaded || false}
+                  />
+                )}
+                {message.uploadedImage && (
+                  <ImagePreview
+                    url={message.uploadedImage.url}
+                    fileName={message.uploadedImage.fileName}
+                  />
+                )}
               </div>
-            )}
-            {message.showUpload && (
-              <UploadButton
-                onUploadComplete={handleUploadComplete}
-                onUploadError={handleUploadError}
-                hasUploaded={message.hasUploaded || false}
-              />
-            )}
-            {message.uploadedImage && (
-              <ImagePreview
-                url={message.uploadedImage.url}
-                fileName={message.uploadedImage.fileName}
-              />
-            )}
-          </motion.div>
-        ))}
+            </motion.div>
+          ))}
+        </AnimatePresence>
         
+        {/* Typing Indicator */}
         {isProcessing && (
           <motion.div
-            className="message ai typing"
-            initial={{ opacity: 0, y: 20 }}
+            className="chat-bubble ai typing"
+            initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3 }}
+            transition={{ duration: 0.25 }}
           >
-            <div className="typing-indicator">
-              <span></span>
-              <span></span>
-              <span></span>
+            <div className="bubble-avatar">
+              <Zap size={12} />
             </div>
-            <div className="typing-text">Chain Agent is thinking...</div>
+            <div className="bubble-body">
+              <div className="typing-indicator">
+                <span></span>
+                <span></span>
+                <span></span>
+              </div>
+              <span className="typing-text">Chain Agent is thinking...</span>
+            </div>
           </motion.div>
         )}
         <div ref={messagesEndRef} />
       </div>
 
-      <div className="modern-chat-input-wrapper">
+      {/* ── Premium Input Area ── */}
+      <div className="chat-input-area">
         {pendingAction?.isWaitingForConfirmation && (
           <div className="confirmation-banner">
-            <span>⏳ Waiting for your confirmation (Yes/No)</span>
+            <Zap size={13} />
+            <span>Awaiting your confirmation — reply <strong>Yes</strong> or <strong>No</strong></span>
           </div>
         )}
         <form 
-          className="modern-chat-form"
+          className="chat-input-form"
           onSubmit={(e: React.FormEvent) => {
             e.preventDefault();
             handleSendMessage();
           }}
         >
-          <div className="modern-input-container">
+          <div className="chat-input-row">
             <textarea
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
@@ -486,19 +603,20 @@ Please try again with a different image or check your internet connection.`,
               placeholder={
                 pendingAction?.isWaitingForConfirmation 
                   ? "Type 'Yes' to confirm or 'No' to cancel..." 
-                  : "Type your message here..."
+                  : "Ask me anything about blockchain..."
               }
-              className="modern-chat-textarea"
+              className="chat-textarea"
               disabled={isProcessing}
               rows={1}
             />
             <motion.button
               type="submit"
-              className="modern-send-button"
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
+              className="chat-send-btn"
+              disabled={!inputValue.trim() || isProcessing}
+              whileHover={{ scale: 1.04 }}
+              whileTap={{ scale: 0.94 }}
             >
-              <IoArrowForward className="modern-send-icon" />
+              <IoArrowForward size={16} />
             </motion.button>
           </div>
         </form>
