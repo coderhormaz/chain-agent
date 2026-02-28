@@ -77,7 +77,7 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
     return () => {
       cancelled = true;
       clearTimeout(id);
-      resetLoadingState();       // abort in-flight request when modal closes
+      resetLoadingState();       // invalidate in-flight request when modal closes
     };
   }, [isOpen]);
 

@@ -66,7 +66,48 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     detectSessionInUrl: true,
     storageKey: STORAGE_KEY,
     storage: createCustomStorage(),
-    flowType: 'pkce'
+    flowType: 'pkce',
+    // Custom lock that prevents infinite hangs.
+    // The default GoTrueClient calls getSession() with acquireTimeout = -1
+    // (infinite). If a slow token refresh holds the navigator lock, every
+    // subsequent REST query blocks forever because _getAccessToken() also
+    // calls getSession(-1). We cap the effective timeout at 5 s and fall
+    // back to running without a lock so the app can still function.
+    lock: async (
+      name: string,
+      acquireTimeout: number,
+      fn: () => Promise<unknown>
+    ) => {
+      const effectiveTimeout = acquireTimeout <= 0 ? 5000 : acquireTimeout;
+
+      if (typeof navigator !== 'undefined' && navigator?.locks) {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), effectiveTimeout);
+        try {
+          return await navigator.locks.request(
+            name,
+            { mode: 'exclusive', signal: controller.signal },
+            async (lock) => {
+              if (lock) return await fn();
+              // Shouldn't happen, but run anyway as fallback
+              return await fn();
+            }
+          );
+        } catch (e) {
+          if (e instanceof DOMException && e.name === 'AbortError') {
+            // Lock acquisition timed out — run unprotected to avoid deadlock
+            console.warn('[Supabase] Lock acquire timed out, running without lock');
+            return await fn();
+          }
+          throw e;
+        } finally {
+          clearTimeout(timer);
+        }
+      }
+
+      // No navigator locks available — just run fn
+      return await fn();
+    },
   },
   global: {
     headers: {

@@ -20,8 +20,9 @@ interface ContactsState {
   resetLoadingState: () => void;
 }
 
-// Track active fetch to prevent race conditions
-let activeFetchController: AbortController | null = null;
+// Generation counter — replaces AbortController to avoid interrupting
+// the Supabase client's internal navigator lock during token refresh.
+let fetchGeneration = 0;
 
 export const useContactsStore = create<ContactsState>((set, get) => ({
   contacts: [],
@@ -32,14 +33,6 @@ export const useContactsStore = create<ContactsState>((set, get) => ({
   // Fetch all contacts for the current user
   fetchContacts: async (force = false) => {
     console.log('[ContactStore] fetchContacts called, force:', force);
-    console.log('[ContactStore] Timestamp:', new Date().toISOString());
-
-    // Cancel any in-flight request
-    if (activeFetchController) {
-      console.log('[ContactStore] Aborting previous fetch request');
-      try { activeFetchController.abort(); } catch (_) { /* ignore */ }
-      activeFetchController = null;
-    }
 
     const currentState = get();
     if (currentState.isLoading && !force) {
@@ -47,39 +40,30 @@ export const useContactsStore = create<ContactsState>((set, get) => ({
       return;
     }
 
-    // Create new abort controller — its signal is forwarded to the Supabase
-    // query so aborting actually cancels the HTTP request.
-    const controller = new AbortController();
-    activeFetchController = controller;
-    console.log('[ContactStore] Created new AbortController');
+    // Bump generation — any in-flight request with a stale id will be ignored
+    const thisGen = ++fetchGeneration;
+    console.log('[ContactStore] Starting fetch generation:', thisGen);
 
     try {
       set({ isLoading: true, error: null });
-      console.log('[ContactStore] Calling ContactService.getAllContacts');
 
-      const contacts = await ContactService.getAllContacts(controller.signal);
+      const contacts = await ContactService.getAllContacts();
 
-      // Only update state if this request wasn't superseded
-      if (!controller.signal.aborted) {
-        console.log('[ContactStore] Fetched contacts count:', contacts.length);
-        set({ contacts, isLoading: false });
-        if (activeFetchController === controller) activeFetchController = null;
+      // Only apply result if this is still the latest request
+      if (thisGen !== fetchGeneration) {
+        console.log('[ContactStore] Stale fetch (gen', thisGen, '), ignoring');
+        return;
       }
+      console.log('[ContactStore] Fetched contacts count:', contacts.length);
+      set({ contacts, isLoading: false });
     } catch (error) {
-      if (controller.signal.aborted) {
-        console.log('[ContactStore] Request was aborted, ignoring error');
+      if (thisGen !== fetchGeneration) {
+        console.log('[ContactStore] Stale fetch error (gen', thisGen, '), ignoring');
         return;
       }
       console.error('[ContactStore] Error fetching contacts:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to fetch contacts';
       set({ error: errorMessage, isLoading: false });
-      if (activeFetchController === controller) activeFetchController = null;
-    } finally {
-      // Guarantee loading is turned off for the CURRENT request
-      if (!controller.signal.aborted && get().isLoading) {
-        console.log('[ContactStore] Force resetting loading state in finally block');
-        set({ isLoading: false });
-      }
     }
   },
 
@@ -214,16 +198,8 @@ export const useContactsStore = create<ContactsState>((set, get) => ({
   // Reset loading state
   resetLoadingState: () => {
     console.log('[ContactStore] Resetting loading state');
-    // Also clear any active abort controller
-    if (activeFetchController) {
-      console.log('[ContactStore] Clearing abort controller');
-      try {
-        activeFetchController.abort();
-      } catch (error) {
-        // Ignore abort errors
-      }
-      activeFetchController = null;
-    }
+    // Bump generation so any in-flight fetch is treated as stale
+    fetchGeneration++;
     set({ isLoading: false, error: null });
   },
 }));
