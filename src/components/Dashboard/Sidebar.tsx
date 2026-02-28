@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Zap, Box, Image, Wallet, Moon, Sun, LogOut, CircleDot } from 'lucide-react';
+import { Zap, Box, Image, Wallet, Moon, Sun, LogOut, CircleDot, Bot } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { useTheme } from '../../contexts/ThemeContext';
 
@@ -37,7 +37,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => {
     >
       {/* Brand */}
       <div className="sidebar-brand">
-        <div className="sidebar-brand-icon">⚡</div>
+        <div className="sidebar-brand-icon"><Bot size={22} strokeWidth={2} /></div>
         <h2 className="sidebar-brand-text">opBNB AI</h2>
       </div>
 
