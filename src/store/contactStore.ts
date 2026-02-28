@@ -33,73 +33,52 @@ export const useContactsStore = create<ContactsState>((set, get) => ({
   fetchContacts: async (force = false) => {
     console.log('[ContactStore] fetchContacts called, force:', force);
     console.log('[ContactStore] Timestamp:', new Date().toISOString());
-    
+
     // Cancel any in-flight request
     if (activeFetchController) {
       console.log('[ContactStore] Aborting previous fetch request');
-      try {
-        activeFetchController.abort();
-      } catch (error) {
-        console.log('[ContactStore] Error aborting controller:', error);
-      }
+      try { activeFetchController.abort(); } catch (_) { /* ignore */ }
       activeFetchController = null;
     }
-    
+
     const currentState = get();
     if (currentState.isLoading && !force) {
       console.log('[ContactStore] Already loading, skipping fetch');
       return;
     }
-    
-    // Reset any error state from previous attempts
-    set({ error: null });
-    
-    // Create new abort controller for this request
-    activeFetchController = new AbortController();
-    const controller = activeFetchController;
+
+    // Create new abort controller — its signal is forwarded to the Supabase
+    // query so aborting actually cancels the HTTP request.
+    const controller = new AbortController();
+    activeFetchController = controller;
     console.log('[ContactStore] Created new AbortController');
-    
+
     try {
-      console.log('[ContactStore] Setting isLoading to true');
       set({ isLoading: true, error: null });
       console.log('[ContactStore] Calling ContactService.getAllContacts');
-      
-      const contacts = await ContactService.getAllContacts();
-      
-      // Only update state if this request wasn't aborted
+
+      const contacts = await ContactService.getAllContacts(controller.signal);
+
+      // Only update state if this request wasn't superseded
       if (!controller.signal.aborted) {
         console.log('[ContactStore] Fetched contacts count:', contacts.length);
         set({ contacts, isLoading: false });
-        activeFetchController = null;
-      } else {
-        console.log('[ContactStore] Request was aborted, not updating state');
+        if (activeFetchController === controller) activeFetchController = null;
       }
     } catch (error) {
-      // Only handle error if not aborted
-      if (!controller.signal.aborted) {
-        console.error('[ContactStore] Error fetching contacts:', error);
-        console.error('[ContactStore] Error details:', {
-          message: error instanceof Error ? error.message : 'Unknown',
-          name: error instanceof Error ? error.name : 'Unknown',
-          stack: error instanceof Error ? error.stack : 'No stack'
-        });
-        const errorMessage = error instanceof Error ? error.message : 'Failed to fetch contacts';
-        set({ error: errorMessage, isLoading: false, contacts: [] });
-        activeFetchController = null;
-      } else {
-        console.log('[ContactStore] Error occurred but request was aborted, ignoring');
+      if (controller.signal.aborted) {
+        console.log('[ContactStore] Request was aborted, ignoring error');
+        return;
       }
+      console.error('[ContactStore] Error fetching contacts:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to fetch contacts';
+      set({ error: errorMessage, isLoading: false });
+      if (activeFetchController === controller) activeFetchController = null;
     } finally {
-      // Ensure loading state is always reset for this request if not aborted
-      if (!controller.signal.aborted) {
-        const finalState = get();
-        if (finalState.isLoading) {
-          console.log('[ContactStore] Force resetting loading state in finally block');
-          set({ isLoading: false });
-          activeFetchController = null;
-        }
-      } else {
-        console.log('[ContactStore] Request was aborted, not resetting in finally');
+      // Guarantee loading is turned off for the CURRENT request
+      if (!controller.signal.aborted && get().isLoading) {
+        console.log('[ContactStore] Force resetting loading state in finally block');
+        set({ isLoading: false });
       }
     }
   },

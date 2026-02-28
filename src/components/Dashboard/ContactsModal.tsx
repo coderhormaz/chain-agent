@@ -42,118 +42,42 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
   const [formError, setFormError] = useState('');
   const [formSuccess, setFormSuccess] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
-  // Local loading state override - force it off after max time
-  const [localIsLoading, setLocalIsLoading] = useState(false);
-  const [loadingTimeoutId, setLoadingTimeoutId] = useState<NodeJS.Timeout | null>(null);
   const [authError, setAuthError] = useState(false);
 
-  // Sync local loading state with store, with safety timeout
+  // ── Fetch contacts when modal opens, cancel when it closes ──
   useEffect(() => {
-    if (isLoading) {
-      setLocalIsLoading(true);
-      
-      // Safety: Force loading off after 15 seconds no matter what
-      const timeoutId = setTimeout(() => {
-        console.log('[ContactsModal] ⚠️ Safety timeout reached, forcing loading off');
-        setLocalIsLoading(false);
-        resetLoadingState();
-      }, 15000);
-      
-      setLoadingTimeoutId(timeoutId);
-    } else {
-      setLocalIsLoading(false);
-      if (loadingTimeoutId) {
-        clearTimeout(loadingTimeoutId);
-        setLoadingTimeoutId(null);
-      }
-    }
-  }, [isLoading]);
-  
-  // Load contacts on mount and cleanup on unmount
-  useEffect(() => {
-    let mounted = true;
-    
-    if (isOpen) {
-      console.log('[ContactsModal] Modal opened, resetting loading state and fetching contacts');
-      // Reset both local and store loading states
-      setLocalIsLoading(false);
-      resetLoadingState();
-      setAuthError(false);
-      
-      // Clear any existing timeout
-      if (loadingTimeoutId) {
-        clearTimeout(loadingTimeoutId);
-        setLoadingTimeoutId(null);
-      }
-      
-      // Force fetch to bypass loading guard with retry on auth error
-      const attemptFetch = async (retryCount = 0) => {
-        if (!mounted) return;
-        
-        try {
-          await fetchContacts(true);
-          setAuthError(false);
-        } catch (error) {
-          console.error('[ContactsModal] Fetch error:', error);
-          if (error instanceof Error && error.message.includes('not authenticated') && retryCount < 2) {
-            console.log('[ContactsModal] Auth error, retrying in 1 second...');
-            setTimeout(() => attemptFetch(retryCount + 1), 1000);
-          } else {
-            setAuthError(true);
-            setLocalIsLoading(false);
-          }
-        }
-      };
-      
-      setTimeout(() => attemptFetch(), 100);
-    }
-    
-    // Cleanup: Reset loading state when modal closes or component unmounts
-    return () => {
-      mounted = false;
-      if (!isOpen) {
-        console.log('[ContactsModal] Modal closed, resetting loading state');
-        setLocalIsLoading(false);
-        resetLoadingState();
-        setAuthError(false);
-        if (loadingTimeoutId) {
-          clearTimeout(loadingTimeoutId);
+    if (!isOpen) return;
+
+    let cancelled = false;
+    console.log('[ContactsModal] Modal opened, fetching contacts');
+    setAuthError(false);
+
+    // Cancel any stale in-flight request then kick off a fresh one
+    resetLoadingState();
+
+    const attemptFetch = async (retryCount = 0) => {
+      if (cancelled) return;
+      try {
+        await fetchContacts(true);
+      } catch (err) {
+        if (cancelled) return;
+        console.error('[ContactsModal] Fetch error:', err);
+        if (err instanceof Error && err.message.includes('not authenticated') && retryCount < 2) {
+          console.log('[ContactsModal] Auth error, retrying...');
+          setTimeout(() => attemptFetch(retryCount + 1), 1000);
+        } else {
+          setAuthError(true);
         }
       }
     };
-  }, [isOpen]); // fetchContacts is a stable Zustand function, no need in deps
-  
-  // Additional cleanup on component unmount (e.g., navigation away)
-  useEffect(() => {
+
+    // Small delay lets the store's resetLoadingState settle
+    const id = setTimeout(() => attemptFetch(), 50);
+
     return () => {
-      console.log('[ContactsModal] Component unmounting, force reset loading state');
-      setLocalIsLoading(false);
-      resetLoadingState();
-      if (loadingTimeoutId) {
-        clearTimeout(loadingTimeoutId);
-      }
-    };
-  }, []);
-  
-  // Handle page visibility change (e.g., returning from external link)
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible' && isOpen) {
-        console.log('[ContactsModal] Page became visible, resetting and refetching');
-        setLocalIsLoading(false);
-        resetLoadingState();
-        if (loadingTimeoutId) {
-          clearTimeout(loadingTimeoutId);
-        }
-        setTimeout(() => fetchContacts(true), 200);
-      }
-    };
-    
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      cancelled = true;
+      clearTimeout(id);
+      resetLoadingState();       // abort in-flight request when modal closes
     };
   }, [isOpen]);
 
@@ -441,7 +365,6 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
                     <button
                       onClick={async () => {
                         setAuthError(false);
-                        setLocalIsLoading(true);
                         resetLoadingState();
                         
                         try {
@@ -475,7 +398,7 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
                 )}
 
                 {/* Loading State - using local loading state with safety timeout */}
-                {localIsLoading && !authError && (
+                {isLoading && !authError && (
                   <div className="text-center py-8">
                     <div className="w-6 h-6 border-3 border-green-200 dark:border-green-500/30 border-t-green-500 rounded-full animate-spin mx-auto mb-3"></div>
                     <p className="text-sm text-gray-600 dark:text-gray-400">Loading...</p>
@@ -483,7 +406,7 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
                 )}
 
                 {/* Contacts List */}
-                {!localIsLoading && filteredContacts.length === 0 && (
+                {!isLoading && filteredContacts.length === 0 && (
                   <div className="text-center py-12">
                     <div className="w-16 h-16 rounded-full bg-gradient-to-br from-green-100 to-emerald-100 dark:from-green-900/30 dark:to-emerald-900/30 flex items-center justify-center mx-auto mb-4">
                       <Users className="w-8 h-8 text-green-600 dark:text-green-400" />
@@ -508,7 +431,7 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
                   </div>
                 )}
 
-                {!localIsLoading && filteredContacts.length > 0 && (
+                {!isLoading && filteredContacts.length > 0 && (
                   <div className="space-y-2">
                     {filteredContacts.map((contact) => (
                       <motion.div

@@ -1,5 +1,17 @@
-import { supabase } from '../lib/supabase';
+import { supabase, ensureSession } from '../lib/supabase';
 import { useAuthStore } from '../store/authStore';
+
+/**
+ * Wraps a promise with a timeout. Rejects with a TimeoutError if the
+ * promise doesn't settle within `ms` milliseconds.
+ */
+function withTimeout<T>(promise: Promise<T>, ms: number, label = 'Operation'): Promise<T> {
+  let timer: ReturnType<typeof setTimeout>;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
 
 export interface Contact {
   id: string;
@@ -117,21 +129,40 @@ export class ContactService {
   }
 
   /**
-   * Get all contacts for the current user
-   * With timeout to prevent hanging after navigation
+   * Get all contacts for the current user.
+   * Accepts an optional AbortSignal so callers can cancel in-flight requests.
+   * Wraps the query in a hard 10-second timeout to avoid infinite hangs caused
+   * by stale Supabase session locks.
    */
-  static async getAllContacts(): Promise<Contact[]> {
+  static async getAllContacts(signal?: AbortSignal): Promise<Contact[]> {
     console.log('[ContactService] getAllContacts called');
-    
+
     try {
+      // Ensure the Supabase session is valid before querying.
+      // This prevents the internal getSession() lock from hanging the request.
+      try {
+        await withTimeout(ensureSession(), 5000, 'Session refresh');
+      } catch (sessionErr) {
+        console.warn('[ContactService] Session refresh failed/timed-out, proceeding anyway:', sessionErr);
+      }
+
       const user = await this.getCurrentUser();
       console.log('[ContactService] Fetching contacts for user:', user.id);
 
-      const { data, error } = await supabase
+      // Build the query and pass the abort signal so it can be cancelled
+      const query = supabase
         .from('contacts')
         .select('*')
         .eq('user_id', user.id)
         .order('contact_name', { ascending: true });
+
+      // If an abort signal was provided, attach it
+      if (signal) {
+        query.abortSignal(signal);
+      }
+
+      // Hard 10-second timeout around the actual network call
+      const { data, error } = await withTimeout(query, 10000, 'Contacts query');
 
       if (error) {
         console.error('[ContactService] Error:', error);
@@ -141,6 +172,11 @@ export class ContactService {
       console.log('[ContactService] Found', data?.length || 0, 'contacts');
       return data || [];
     } catch (error) {
+      // Don't log abort errors as failures — they are intentional
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        console.log('[ContactService] getAllContacts aborted');
+        throw error;
+      }
       console.error('[ContactService] getAllContacts failed:', error);
       throw error;
     }
