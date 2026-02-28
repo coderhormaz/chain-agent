@@ -133,17 +133,21 @@ const NFTs: React.FC = () => {
 
       if (!uploadResult.success || !uploadResult.url) {
         console.error('❌ Upload failed:', uploadResult.error);
-        throw new Error(uploadResult.error || 'Failed to upload image to IPFS');
+        throw new Error(uploadResult.error || 'Failed to upload image to IPFS. Please check your Lighthouse API key.');
       }
 
-      console.log('✅ Image uploaded successfully!');
+      // Reject data URLs - they are too large for on-chain tokenURI storage
+      if (uploadResult.url.startsWith('data:')) {
+        throw new Error('Image must be uploaded to IPFS. Data URLs are too large for on-chain NFT storage. Please check your Lighthouse API key configuration.');
+      }
+
+      console.log('✅ Image uploaded to IPFS successfully!');
       console.log('🌐 Image URL:', uploadResult.url);
       console.log('📦 IPFS Hash:', uploadResult.ipfsHash);
       console.log('📁 File name:', uploadResult.fileName);
       
-      // Step 2: Prepare NFT metadata
-      setMintingStage('minting');
-      setMintingProgress('Preparing NFT metadata...');
+      // Step 2: Prepare NFT metadata  
+      setMintingProgress('Uploading metadata to IPFS...');
       
       const nftDetails = {
         name: formData.name,
@@ -157,6 +161,7 @@ const NFTs: React.FC = () => {
       };
 
       // Step 3: Mint NFT on opBNB blockchain
+      setMintingStage('minting');
       setMintingProgress('Minting NFT on opBNB blockchain...');
       console.log('Starting NFT minting on blockchain...');
       

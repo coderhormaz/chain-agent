@@ -166,17 +166,49 @@ export class BlockchainService {
         throw new Error(`Insufficient BNB balance for gas fees. You have ${ethers.formatEther(balance)} BNB, need at least 0.0001 BNB (~$0.09).`);
       }
 
+      // Validate metadata
+      if (!nftDetails.name || nftDetails.name.trim() === '') {
+        throw new Error('NFT name cannot be empty');
+      }
+      
+      // Only accept IPFS/HTTP URLs - data URLs are too large for on-chain storage
+      if (!nftDetails.imageUrl || !nftDetails.imageUrl.startsWith('http')) {
+        throw new Error('Invalid image URL. Image must be uploaded to IPFS first. Data URLs are too large for on-chain storage.');
+      }
+
+      console.log('✅ Image URL validated (IPFS)');
+      console.log('🎨 Minting to shared NFT collection...');
+      console.log('Minter address:', wallet.address);
+      console.log('Collection contract:', addresses.nftFactory);
+
       // Create metadata JSON
       const metadata = {
         name: nftDetails.name,
         description: nftDetails.description,
-        image: nftDetails.imageUrl, // Lighthouse IPFS URL or data URL
+        image: nftDetails.imageUrl, // Lighthouse IPFS URL
         attributes: nftDetails.attributes || [],
         external_url: nftDetails.imageUrl
       };
 
-      // Create token URI with base64 encoded metadata
-      const tokenURI = `data:application/json;base64,${btoa(JSON.stringify(metadata))}`;
+      // Upload metadata JSON to IPFS so tokenURI is a short URL (not a huge base64 blob)
+      console.log('📤 Uploading metadata JSON to IPFS...');
+      const { LighthouseService } = await import('./lighthouseService');
+      const metadataUpload = await LighthouseService.uploadJSON(metadata, `${nftDetails.name.replace(/\s+/g, '_')}_metadata.json`);
+      
+      let tokenURI: string;
+      if (metadataUpload.success && metadataUpload.url) {
+        tokenURI = metadataUpload.url;
+        console.log('✅ Metadata uploaded to IPFS:', tokenURI);
+      } else {
+        // Fallback: base64 encode metadata (only safe because imageUrl is a short IPFS URL)
+        console.log('⚠️ Metadata IPFS upload failed, using base64 fallback');
+        const metadataJson = JSON.stringify(metadata);
+        // Guard: if the base64 tokenURI would be too large (>5KB), reject
+        if (metadataJson.length > 5000) {
+          throw new Error('Metadata is too large for on-chain storage. Please ensure image was uploaded to IPFS successfully.');
+        }
+        tokenURI = `data:application/json;base64,${btoa(metadataJson)}`;
+      }
       
       console.log('📝 NFT Metadata:', {
         name: nftDetails.name,
@@ -185,21 +217,10 @@ export class BlockchainService {
         tokenURILength: tokenURI.length
       });
 
-      // Validate metadata
-      if (!nftDetails.name || nftDetails.name.trim() === '') {
-        throw new Error('NFT name cannot be empty');
+      // Final safety check: tokenURI must be reasonable size for on-chain storage
+      if (tokenURI.length > 10000) {
+        throw new Error(`tokenURI is too large (${tokenURI.length} chars). This would cause gas estimation failure. Please ensure both image and metadata are uploaded to IPFS.`);
       }
-      
-      // Accept both data URLs (for embedded images) and HTTP URLs (for Lighthouse IPFS)
-      if (!nftDetails.imageUrl || 
-          (!nftDetails.imageUrl.startsWith('http') && !nftDetails.imageUrl.startsWith('data:'))) {
-        throw new Error('Invalid image URL. Must be a valid HTTP(S) URL from Lighthouse IPFS or a data URL.');
-      }
-
-      console.log('✅ Metadata validated');
-      console.log('🎨 Minting to shared NFT collection...');
-      console.log('Minter address:', wallet.address);
-      console.log('Collection contract:', addresses.nftFactory);
 
       // Estimate gas for the mintNFT function on OptimizedNFTFactory
       let gasEstimate: bigint;
