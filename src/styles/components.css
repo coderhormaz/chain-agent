@@ -736,10 +736,11 @@ button[size="icon"] {
   position: relative;
   overflow: hidden;
   min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: calc(var(--header-height) + var(--space-8)) 0 var(--space-12);
+  padding: calc(var(--header-height) + var(--space-8)) 0 var(--space-6);
 }
 
 /* ── Background layer ── */
@@ -1017,7 +1018,7 @@ button[size="icon"] {
 
 /* ── Scroll indicator ── */
 .hero-scroll-indicator {
-  margin-top: var(--space-16);
+  margin-top: var(--space-10);
   display: flex;
   justify-content: center;
 }
@@ -1025,7 +1026,7 @@ button[size="icon"] {
 .hero-scroll-indicator__line {
   display: block;
   width: 1px;
-  height: 48px;
+  height: 36px;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.3), transparent);
   animation: hero-scroll-fade 2s ease-in-out infinite;
 }
@@ -1043,8 +1044,9 @@ button[size="icon"] {
 @media (max-width: 768px) {
   .hero-section {
     min-height: 100vh;
+    min-height: 100dvh;
     padding-top: calc(var(--header-height) + var(--space-6));
-    padding-bottom: var(--space-8);
+    padding-bottom: var(--space-4);
   }
 
   .hero-title {
@@ -1079,7 +1081,7 @@ button[size="icon"] {
   }
 
   .hero-scroll-indicator {
-    margin-top: var(--space-10);
+    margin-top: var(--space-8);
   }
 }
 

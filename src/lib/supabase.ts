@@ -13,48 +13,34 @@ console.log('🔗 Connecting to Supabase:', supabaseUrl);
 const STORAGE_KEY = 'opbnb-ai-auth';
 const REMEMBER_ME_KEY = 'opbnb-ai-remember-me';
 
-// Custom storage adapter that can switch between localStorage and sessionStorage
+// Storage adapter — always use localStorage so the Supabase session token
+// survives same-tab navigations to external sites (sessionStorage is scoped
+// to the browsing context and can be cleared on some browsers during
+// navigations).  We also migrate any legacy sessionStorage tokens on read.
 const createCustomStorage = () => {
   return {
     getItem: (key: string) => {
-      // Check if user wants to be remembered (default to sessionStorage if not set)
-      const rememberMeValue = localStorage.getItem(REMEMBER_ME_KEY);
-      const rememberMe = rememberMeValue === 'true';
-      
-      const primaryStorage = rememberMe ? localStorage : sessionStorage;
-      const alternateStorage = rememberMe ? sessionStorage : localStorage;
-      
-      // Try to get from primary storage first
-      let value = primaryStorage.getItem(key);
-      
-      // If not found in primary storage, check alternate storage
+      let value = localStorage.getItem(key);
+
+      // Migrate from sessionStorage if an older session lives there
       if (value === null) {
-        value = alternateStorage.getItem(key);
-        
-        // If found in alternate storage, migrate it to primary storage
+        value = sessionStorage.getItem(key);
         if (value !== null) {
           try {
-            primaryStorage.setItem(key, value);
-            alternateStorage.removeItem(key);
-          } catch (error) {
-            // If migration fails (e.g., quota exceeded), still return the value
-            console.warn('Failed to migrate session storage:', error);
-          }
+            localStorage.setItem(key, value);
+            sessionStorage.removeItem(key);
+          } catch (_) { /* quota exceeded — still return the value */ }
         }
       }
-      
+
       return value;
     },
     setItem: (key: string, value: string) => {
-      // Check if user wants to be remembered
-      const rememberMe = localStorage.getItem(REMEMBER_ME_KEY) === 'true';
-      const storage = rememberMe ? localStorage : sessionStorage;
-      storage.setItem(key, value);
+      localStorage.setItem(key, value);
     },
     removeItem: (key: string) => {
-      // Remove from both storages to ensure cleanup
       localStorage.removeItem(key);
-      sessionStorage.removeItem(key);
+      sessionStorage.removeItem(key); // clean up any legacy copy
     }
   };
 };

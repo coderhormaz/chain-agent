@@ -24,8 +24,10 @@ export const useAuth = () => {
 
     // Get initial session
     const initializeAuth = async () => {
-      // Only run initialization if not already initialized from storage
-      if (isInitialized) {
+      // If already initialized AND user is present, skip re-init.
+      // After logout isInitialized is false so we always re-init.
+      const authState = useAuthStore.getState();
+      if (authState.isInitialized && authState.user) {
         setLoading(false);
         setAuthLoading(false);
         clearTimeout(timeout);
@@ -89,86 +91,96 @@ export const useAuth = () => {
       }
     });
 
-    // Handle page visibility change - refresh session when user comes back
+    // Handle page visibility change — refresh session when user comes back.
+    // IMPORTANT: never clear auth state on transient errors (lock timeouts,
+    // network hiccups). Only clear when Supabase explicitly tells us the
+    // refresh token is invalid.
+    let visibilityCheckInFlight = false;
+
     const handleVisibilityChange = async () => {
-      if (document.visibilityState === 'visible') {
-        console.log('Page became visible, checking session...');
-        try {
-          // First try getSession (faster, uses cached session)
-          const { data: { session: cachedSession }, error: getError } = await supabase.auth.getSession();
-          
-          if (!getError && cachedSession?.user) {
-            console.log('Valid cached session found');
-            setAuthUser(cachedSession.user);
-            setUser(cachedSession.user);
-            
-            const userWallet = await AuthService.getUserWallet(cachedSession.user.id);
-            if (userWallet) {
-              setWallet(userWallet);
-              setNewWallet({
-                address: userWallet.wallet_address,
-                privateKey: userWallet.encrypted_private_key
-              });
-            }
-            return;
+      if (document.visibilityState !== 'visible') return;
+      if (visibilityCheckInFlight) return;           // de-dup concurrent calls
+      visibilityCheckInFlight = true;
+
+      console.log('Page became visible, checking session...');
+      try {
+        // Fast path — cached session may still be valid
+        const { data: { session: cachedSession }, error: getError } = await supabase.auth.getSession();
+
+        if (!getError && cachedSession?.user) {
+          console.log('Valid cached session found');
+          setAuthUser(cachedSession.user);
+          setUser(cachedSession.user);
+
+          const userWallet = await AuthService.getUserWallet(cachedSession.user.id);
+          if (userWallet) {
+            setWallet(userWallet);
+            setNewWallet({
+              address: userWallet.wallet_address,
+              privateKey: userWallet.encrypted_private_key
+            });
           }
-          
-          // If cached session failed, try refresh to get new token
-          console.log('Cached session invalid, refreshing...');
-          const { data: { session }, error } = await supabase.auth.refreshSession();
-          
-          if (error) {
-            console.error('Error refreshing session:', error);
-            // Session truly expired, clear state
+          return;
+        }
+
+        // Slow path — attempt token refresh
+        console.log('Cached session invalid, refreshing...');
+        const { data: { session }, error } = await supabase.auth.refreshSession();
+
+        if (session?.user) {
+          console.log('Session refreshed successfully');
+          setAuthUser(session.user);
+          setUser(session.user);
+
+          const userWallet = await AuthService.getUserWallet(session.user.id);
+          if (userWallet) {
+            setWallet(userWallet);
+            setNewWallet({
+              address: userWallet.wallet_address,
+              privateKey: userWallet.encrypted_private_key
+            });
+          }
+          return;
+        }
+
+        // Only clear state when the server explicitly rejects the refresh
+        // token (e.g. "Invalid Refresh Token" / status 400). Lock timeouts,
+        // network failures, etc. should NOT log the user out.
+        if (error) {
+          const msg = error.message?.toLowerCase() ?? '';
+          const isHardAuthFailure =
+            msg.includes('invalid refresh token') ||
+            msg.includes('refresh token not found') ||
+            msg.includes('user not found') ||
+            msg.includes('session not found') ||
+            error.status === 401 ||
+            error.status === 403;
+
+          if (isHardAuthFailure) {
+            console.warn('Session expired (server rejected refresh), signing out');
             setAuthUser(null);
             setUser(null);
             setWallet(null);
             setNewWallet(null);
             setBalance('0');
-            return;
+          } else {
+            console.warn('Session check failed with transient error, keeping user signed in:', error.message);
           }
-          
-          if (session?.user) {
-            console.log('Session refreshed successfully with new token');
-            setAuthUser(session.user);
-            setUser(session.user);
-            
-            // Refresh wallet if needed
-            const userWallet = await AuthService.getUserWallet(session.user.id);
-            if (userWallet) {
-              setWallet(userWallet);
-              setNewWallet({
-                address: userWallet.wallet_address,
-                privateKey: userWallet.encrypted_private_key
-              });
-            }
-          }
-        } catch (error) {
-          console.error('Failed to refresh session:', error);
-          // On error, clear the session state
-          setAuthUser(null);
-          setUser(null);
-          setWallet(null);
-          setNewWallet(null);
-          setBalance('0');
         }
+      } catch (err) {
+        // Transient / lock-timeout errors — do NOT clear state
+        console.warn('Visibility session check threw, keeping user signed in:', err);
+      } finally {
+        visibilityCheckInFlight = false;
       }
     };
-    
-    // Also handle window focus event (when user returns to the tab)
-    const handleFocus = async () => {
-      console.log('Window focused, checking session...');
-      handleVisibilityChange();
-    };
-    
+
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('focus', handleFocus);
 
     return () => {
       clearTimeout(timeout);
       subscription.unsubscribe();
       document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('focus', handleFocus);
     };
   }, [setUser, setAuthUser, setWallet, setNewWallet, setLoading, setAuthLoading, setBalance, setInitialized, isInitialized]);
 

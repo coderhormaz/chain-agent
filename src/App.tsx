@@ -12,10 +12,12 @@ import './styles/components.css';
 
 function App() {
   useAuth(); // Initialize authentication
-  const { isInitialized, isLoading } = useAuthStore();
+  const { isInitialized } = useAuthStore();
 
-  // Show loading screen only if not initialized or still loading
-  if (!isInitialized || isLoading) {
+  // Show loading screen only during initial auth bootstrap.
+  // Once initialized, never block on isLoading (it may be transiently
+  // true during token refresh).
+  if (!isInitialized) {
     return (
       <ThemeProvider>
         <div className="loading-screen">

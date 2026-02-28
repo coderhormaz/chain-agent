@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { Zap, Box, Image, Wallet, Moon, Sun, LogOut, CircleDot, Bot } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { useTheme } from '../../contexts/ThemeContext';
+import { supabase } from '../../lib/supabase';
 
 interface SidebarProps {
   activeTab: string;
@@ -20,7 +21,12 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => {
     { id: 'wallet', label: 'Wallet', icon: <Wallet size={18} strokeWidth={2} /> }
   ];
 
-  const handleSignOut = () => {
+  const handleSignOut = async () => {
+    try {
+      await supabase.auth.signOut();
+    } catch (e) {
+      console.warn('signOut error (ignored):', e);
+    }
     logout();
     window.location.href = '/';
   };

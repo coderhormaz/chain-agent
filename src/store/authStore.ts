@@ -28,7 +28,9 @@ export const useAuthStore = create<AuthState>()(
       setInitialized: (initialized) => set({ isInitialized: initialized }),
       logout: () => set({ 
         user: null, 
-        isAuthenticated: false 
+        isAuthenticated: false,
+        isInitialized: false,
+        isLoading: false,
       }),
     }),
     {
@@ -36,6 +38,7 @@ export const useAuthStore = create<AuthState>()(
       partialize: (state) => ({
         user: state.user,
         isAuthenticated: state.isAuthenticated,
+        isInitialized: state.isInitialized,
       }),
       onRehydrateStorage: () => (state, error) => {
         // Handle rehydration errors

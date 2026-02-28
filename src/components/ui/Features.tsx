@@ -54,7 +54,7 @@ export function Features() {
                 isDark ? 'bg-[#0f0f1e]' : 'bg-white'
             }`}
             style={{
-                padding: '5rem 0',
+                padding: '3rem 0 5rem',
                 background: isDark 
                     ? 'linear-gradient(180deg, transparent 0%, rgba(102, 126, 234, 0.05) 100%)'
                     : 'linear-gradient(180deg, transparent 0%, rgba(102, 126, 234, 0.03) 100%)',
