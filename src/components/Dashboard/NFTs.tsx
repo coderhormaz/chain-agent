@@ -130,11 +130,9 @@ const NFTs: React.FC = () => {
         imageUrl = uploadResult.url;
         console.log('✅ Image uploaded to IPFS:', imageUrl);
       } else {
-        // Image upload failed — proceed without image (metadata-only NFT)
-        console.warn('⚠️ Image IPFS upload failed:', uploadResult.error);
-        console.log('Proceeding to mint NFT without on-chain image...');
-        // Show warning but don't block minting
-        setMintingProgress('Image upload failed. Minting NFT without image...');
+        // Image upload failed — block minting, image is required
+        console.error('❌ Image IPFS upload failed:', uploadResult.error);
+        throw new Error(uploadResult.error || 'Failed to upload image to IPFS. Please try again.');
       }
       
       // Step 2: Prepare NFT metadata  

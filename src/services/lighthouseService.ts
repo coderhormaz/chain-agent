@@ -15,21 +15,33 @@ export class LighthouseService {
   private static apiKey: string = import.meta.env.VITE_LIGHTHOUSE_API_KEY || '';
 
   /**
+   * Helper to detect common API errors and return a friendly message
+   */
+  private static handleApiError(error: any): UploadResult {
+    const errMsg = error?.message || String(error);
+    if (errMsg.includes('Trial expired') || errMsg.includes('expired') || errMsg.includes('Unauthorized')) {
+      return {
+        success: false,
+        error: 'Lighthouse API key has expired. Please get a new API key from https://files.lighthouse.storage and update VITE_LIGHTHOUSE_API_KEY in your .env file.'
+      };
+    }
+    return {
+      success: false,
+      error: `IPFS upload failed: ${errMsg}. Please check your Lighthouse API key and try again.`
+    };
+  }
+
+  /**
    * Upload an image file to Lighthouse (IPFS)
+   * Uses lighthouse.upload() which properly handles browser File objects
    * @param file - The image file to upload
    * @returns Upload result with IPFS URL
    */
   static async uploadImage(file: File): Promise<UploadResult> {
     try {
-      console.log('🚀 Starting Lighthouse upload...');
-      console.log('📁 File details:', {
-        name: file.name,
-        size: file.size,
-        type: file.type
-      });
-      console.log('🔑 API Key loaded:', this.apiKey ? `${this.apiKey.substring(0, 10)}...` : 'NOT SET');
+      console.log('🚀 Starting Lighthouse image upload...');
+      console.log('📁 File:', file.name, file.size, 'bytes', file.type);
 
-      // Check if API key is configured
       if (!this.apiKey || this.apiKey === 'your_lighthouse_api_key_here') {
         return {
           success: false,
@@ -37,30 +49,47 @@ export class LighthouseService {
         };
       }
 
-      console.log('📤 Uploading image to Lighthouse IPFS...');
-      
-      // Use uploadBuffer with the file content
-      const arrayBuffer = await file.arrayBuffer();
-      const buffer = new Uint8Array(arrayBuffer);
-      
-      let uploadResponse: any;
-      try {
-        uploadResponse = await lighthouse.uploadBuffer(buffer, this.apiKey);
-      } catch (uploadErr: any) {
-        const errMsg = uploadErr?.message || String(uploadErr);
-        // Detect expired API key
-        if (errMsg.includes('Trial expired') || errMsg.includes('expired') || errMsg.includes('Unauthorized')) {
-          return {
-            success: false,
-            error: 'Lighthouse API key has expired. Please get a new API key from https://files.lighthouse.storage and update VITE_LIGHTHOUSE_API_KEY in your .env file.'
-          };
-        }
-        throw uploadErr;
+      // Validate the file is a real image with actual content
+      if (!file || file.size === 0) {
+        return { success: false, error: 'Image file is empty or invalid.' };
       }
 
-      console.log('✅ Upload response:', uploadResponse);
+      if (!file.type || !file.type.startsWith('image/')) {
+        return { success: false, error: `Invalid file type "${file.type}". Only image files are accepted.` };
+      }
 
-      // Extract IPFS hash from response
+      // Ensure we have a proper File object (not a bare Blob) so the SDK
+      // sends the correct filename and MIME type in the multipart upload.
+      let uploadFile: File;
+      if (file instanceof File && file.name && file.name !== 'blob') {
+        uploadFile = file;
+      } else {
+        // Re-wrap as a proper File to guarantee name + type are preserved
+        const ext = file.type.split('/')[1] || 'png';
+        uploadFile = new File([file], `nft_image_${Date.now()}.${ext}`, { type: file.type });
+        console.log('🔄 Re-wrapped blob as File:', uploadFile.name, uploadFile.type);
+      }
+
+      // Use lighthouse.upload() with File objects — this is the correct browser method.
+      // It properly sets multipart form data with the File object, preserving
+      // filename and MIME type, so images appear correctly in the Lighthouse dashboard.
+      // IMPORTANT: Do NOT use lighthouse.uploadBuffer() in the browser — it
+      // stringifies Uint8Array instead of sending binary data, corrupting the image.
+      console.log('📤 Uploading to Lighthouse IPFS via upload()...');
+      console.log('📁 Upload file:', uploadFile.name, uploadFile.size, 'bytes', uploadFile.type);
+
+      let uploadResponse: any;
+      try {
+        // lighthouse.upload expects an array of File objects in the browser
+        uploadResponse = await lighthouse.upload([uploadFile], this.apiKey);
+      } catch (uploadErr: any) {
+        console.error('❌ lighthouse.upload() threw:', uploadErr);
+        return this.handleApiError(uploadErr);
+      }
+
+      console.log('✅ Upload response:', JSON.stringify(uploadResponse));
+
+      // Extract IPFS hash — response shape: { data: { Name, Hash, Size } }
       const responseData = uploadResponse?.data;
       const ipfsHash = responseData?.Hash;
       const fileName = responseData?.Name || file.name;
@@ -69,20 +98,15 @@ export class LighthouseService {
         console.error('❌ No IPFS hash in response:', uploadResponse);
         return {
           success: false,
-          error: 'Lighthouse upload returned no IPFS hash. Please try again.'
+          error: 'Lighthouse upload succeeded but returned no IPFS hash. Please try again.'
         };
       }
 
-      // Construct public gateway URL
       const ipfsUrl = `https://gateway.lighthouse.storage/ipfs/${ipfsHash}`;
-      
-      console.log('🎉 Image upload successful!');
-      console.log('📋 Summary:', {
-        success: true,
-        ipfsHash,
-        fileName,
-        url: ipfsUrl
-      });
+
+      console.log('🎉 Image uploaded successfully!');
+      console.log('🌐 URL:', ipfsUrl);
+      console.log('📋 Hash:', ipfsHash, 'Name:', fileName);
 
       return {
         success: true,
@@ -90,26 +114,15 @@ export class LighthouseService {
         ipfsHash,
         fileName
       };
-
     } catch (error: any) {
-      console.error('❌ Lighthouse upload failed:', error);
-      const errMsg = error?.message || String(error);
-      if (errMsg.includes('Trial expired') || errMsg.includes('expired')) {
-        return {
-          success: false,
-          error: 'Lighthouse API key has expired. Please get a new API key from https://files.lighthouse.storage and update VITE_LIGHTHOUSE_API_KEY in your .env file.'
-        };
-      }
-      return {
-        success: false,
-        error: `IPFS upload failed: ${errMsg}. Please check your API key and try again.`
-      };
+      console.error('❌ Lighthouse image upload failed:', error);
+      return this.handleApiError(error);
     }
   }
 
   /**
    * Upload a JSON metadata object to Lighthouse (IPFS)
-   * Returns a short IPFS URL suitable for on-chain tokenURI storage
+   * Uses lighthouse.uploadText() which is designed for text content
    * @param metadata - The metadata object to upload
    * @param fileName - Optional filename for the JSON file
    * @returns Upload result with IPFS URL
@@ -126,27 +139,17 @@ export class LighthouseService {
       }
 
       const jsonString = JSON.stringify(metadata);
-      const encoder = new TextEncoder();
-      const uint8Array = encoder.encode(jsonString);
 
       let uploadResponse: any;
       try {
-        uploadResponse = await lighthouse.uploadBuffer(
-          uint8Array,
-          this.apiKey
-        );
+        // uploadText is the correct method for string/JSON content
+        uploadResponse = await lighthouse.uploadText(jsonString, this.apiKey, fileName);
       } catch (uploadErr: any) {
-        const errMsg = uploadErr?.message || String(uploadErr);
-        if (errMsg.includes('Trial expired') || errMsg.includes('expired') || errMsg.includes('Unauthorized')) {
-          return {
-            success: false,
-            error: 'Lighthouse API key has expired. Please get a new API key from https://files.lighthouse.storage'
-          };
-        }
-        throw uploadErr;
+        console.error('❌ lighthouse.uploadText() threw:', uploadErr);
+        return this.handleApiError(uploadErr);
       }
 
-      console.log('✅ Metadata upload response:', uploadResponse);
+      console.log('✅ Metadata upload response:', JSON.stringify(uploadResponse));
 
       const responseData = uploadResponse?.data;
       const ipfsHash = responseData?.Hash;
@@ -161,8 +164,7 @@ export class LighthouseService {
 
       const ipfsUrl = `https://gateway.lighthouse.storage/ipfs/${ipfsHash}`;
 
-      console.log('🎉 Metadata uploaded successfully!');
-      console.log('🌐 Metadata URL:', ipfsUrl);
+      console.log('🎉 Metadata uploaded! URL:', ipfsUrl);
 
       return {
         success: true,
@@ -172,10 +174,7 @@ export class LighthouseService {
       };
     } catch (error: any) {
       console.error('❌ Metadata upload failed:', error);
-      return {
-        success: false,
-        error: `Metadata upload failed: ${error?.message || 'Unknown error'}`
-      };
+      return this.handleApiError(error);
     }
   }
 
