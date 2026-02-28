@@ -28,7 +28,6 @@ export class LighthouseService {
         type: file.type
       });
       console.log('🔑 API Key loaded:', this.apiKey ? `${this.apiKey.substring(0, 10)}...` : 'NOT SET');
-      console.log('🔑 API Key length:', this.apiKey?.length || 0);
 
       // Check if API key is configured
       if (!this.apiKey || this.apiKey === 'your_lighthouse_api_key_here') {
@@ -38,17 +37,26 @@ export class LighthouseService {
         };
       }
 
-      // Upload to Lighthouse using uploadBuffer for reliable browser support
-      console.log('📤 Uploading to Lighthouse IPFS with key:', this.apiKey.substring(0, 15) + '...');
+      console.log('📤 Uploading image to Lighthouse IPFS...');
       
-      // Convert File to buffer for more reliable upload
+      // Use uploadBuffer with the file content
       const arrayBuffer = await file.arrayBuffer();
-      const uint8Array = new Uint8Array(arrayBuffer);
+      const buffer = new Uint8Array(arrayBuffer);
       
-      const uploadResponse = await lighthouse.uploadBuffer(
-        uint8Array,
-        this.apiKey
-      );
+      let uploadResponse: any;
+      try {
+        uploadResponse = await lighthouse.uploadBuffer(buffer, this.apiKey);
+      } catch (uploadErr: any) {
+        const errMsg = uploadErr?.message || String(uploadErr);
+        // Detect expired API key
+        if (errMsg.includes('Trial expired') || errMsg.includes('expired') || errMsg.includes('Unauthorized')) {
+          return {
+            success: false,
+            error: 'Lighthouse API key has expired. Please get a new API key from https://files.lighthouse.storage and update VITE_LIGHTHOUSE_API_KEY in your .env file.'
+          };
+        }
+        throw uploadErr;
+      }
 
       console.log('✅ Upload response:', uploadResponse);
 
@@ -68,7 +76,7 @@ export class LighthouseService {
       // Construct public gateway URL
       const ipfsUrl = `https://gateway.lighthouse.storage/ipfs/${ipfsHash}`;
       
-      console.log('🎉 Upload successful!');
+      console.log('🎉 Image upload successful!');
       console.log('📋 Summary:', {
         success: true,
         ipfsHash,
@@ -85,9 +93,16 @@ export class LighthouseService {
 
     } catch (error: any) {
       console.error('❌ Lighthouse upload failed:', error);
+      const errMsg = error?.message || String(error);
+      if (errMsg.includes('Trial expired') || errMsg.includes('expired')) {
+        return {
+          success: false,
+          error: 'Lighthouse API key has expired. Please get a new API key from https://files.lighthouse.storage and update VITE_LIGHTHOUSE_API_KEY in your .env file.'
+        };
+      }
       return {
         success: false,
-        error: `IPFS upload failed: ${error?.message || 'Unknown error'}. Please check your API key and try again.`
+        error: `IPFS upload failed: ${errMsg}. Please check your API key and try again.`
       };
     }
   }
@@ -114,10 +129,22 @@ export class LighthouseService {
       const encoder = new TextEncoder();
       const uint8Array = encoder.encode(jsonString);
 
-      const uploadResponse = await lighthouse.uploadBuffer(
-        uint8Array,
-        this.apiKey
-      );
+      let uploadResponse: any;
+      try {
+        uploadResponse = await lighthouse.uploadBuffer(
+          uint8Array,
+          this.apiKey
+        );
+      } catch (uploadErr: any) {
+        const errMsg = uploadErr?.message || String(uploadErr);
+        if (errMsg.includes('Trial expired') || errMsg.includes('expired') || errMsg.includes('Unauthorized')) {
+          return {
+            success: false,
+            error: 'Lighthouse API key has expired. Please get a new API key from https://files.lighthouse.storage'
+          };
+        }
+        throw uploadErr;
+      }
 
       console.log('✅ Metadata upload response:', uploadResponse);
 

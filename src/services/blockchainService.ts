@@ -9,16 +9,19 @@ const OPTIMIZED_TOKEN_FACTORY_ABI = [
   "function getTotalTokensCount() external view returns (uint256)"
 ];
 
-// OptimizedNFTFactory ABI - Matches the deployed contract on opBNB
-const OPTIMIZED_NFT_FACTORY_ABI = [
-  "function mintNFT(address to, string calldata uri, string calldata name, string calldata description) external returns (uint256)",
-  "function batchMintNFT(address[] calldata recipients, string[] calldata tokenURIs, string[] calldata names, string[] calldata descriptions) external returns (uint256[])",
-  "function getCreatorNFTs(address creator) external view returns (uint256[])",
-  "function getNFTInfo(uint256 tokenId) external view returns (tuple(address creator, uint96 timestamp, string name, string description, string tokenURI))",
+// SimpleNFTCollection ABI - Matches the actual deployed contract on opBNB
+// Contract at VITE_NFT_FACTORY_CONTRACT uses mint(string) not mintNFT(address,string,string,string)
+const SIMPLE_NFT_COLLECTION_ABI = [
+  "function mint(string calldata uri) external returns (uint256)",
+  "function batchMint(string[] calldata uris) external returns (uint256[])",
+  "function getTokensByCreator(address creator) external view returns (uint256[])",
+  "function nftCreator(uint256 tokenId) external view returns (address)",
   "function totalSupply() external view returns (uint256)",
   "function exists(uint256 tokenId) external view returns (bool)",
   "function ownerOf(uint256 tokenId) external view returns (address)",
-  "function tokenURI(uint256 tokenId) external view returns (string memory)"
+  "function tokenURI(uint256 tokenId) external view returns (string memory)",
+  "function name() external view returns (string)",
+  "function symbol() external view returns (string)"
 ];
 
 const ERC20_ABI = [
@@ -113,7 +116,7 @@ export class BlockchainService {
   ): Promise<TransactionResult> {
     try {
       console.log('Minting NFT:', nftDetails);
-      console.log('Recipient:', recipientAddress);
+      console.log('Recipient (will mint to sender):', recipientAddress);
       
       const provider = this.getProvider();
       const wallet = new ethers.Wallet(privateKey, provider);
@@ -123,7 +126,7 @@ export class BlockchainService {
         throw new Error('NFT factory contract address not configured');
       }
 
-      console.log('Using NFT Factory address:', addresses.nftFactory);
+      console.log('Using NFT Collection address:', addresses.nftFactory);
 
       // Check if contract exists at address
       const contractCode = await provider.getCode(addresses.nftFactory);
@@ -132,130 +135,112 @@ export class BlockchainService {
         throw new Error(`No contract found at address ${addresses.nftFactory}. Contract may not be deployed.`);
       }
 
-      const contract = new ethers.Contract(addresses.nftFactory, OPTIMIZED_NFT_FACTORY_ABI, wallet);
+      // Use the correct ABI for SimpleNFTCollection
+      const contract = new ethers.Contract(addresses.nftFactory, SIMPLE_NFT_COLLECTION_ABI, wallet);
 
-      // Try to call a view function to verify the contract interface
+      // Verify the contract interface
       try {
         console.log('Verifying contract interface by calling totalSupply...');
         const totalNFTs = await contract.totalSupply();
         console.log('Contract verification successful. Total NFTs:', totalNFTs.toString());
-        
-        // Additional contract diagnostics
-        try {
-          const owner = await contract.owner();
-          console.log('Contract owner:', owner);
-          console.log('Your wallet:', wallet.address);
-          console.log('Are you the owner?', owner.toLowerCase() === wallet.address.toLowerCase());
-        } catch {
-          console.log('Could not get contract owner (function may not exist)');
-        }
-        
       } catch (interfaceError) {
         console.error('Contract interface verification failed:', interfaceError);
-        throw new Error(`Contract at ${addresses.nftFactory} exists but doesn't have the expected interface. The contract may not be an NFT factory or may have a different ABI.`);
+        throw new Error(`Contract at ${addresses.nftFactory} doesn't have the expected interface.`);
       }
 
       // Check wallet balance
       const balance = await provider.getBalance(wallet.address);
       console.log('Wallet balance:', ethers.formatEther(balance), 'BNB');
       
-      // Check if we have enough for gas
-      const minRequiredForGas = ethers.parseEther('0.0001'); // ~$0.09 at $900/BNB
-      
+      const minRequiredForGas = ethers.parseEther('0.0001');
       if (balance < minRequiredForGas) {
-        throw new Error(`Insufficient BNB balance for gas fees. You have ${ethers.formatEther(balance)} BNB, need at least 0.0001 BNB (~$0.09).`);
+        throw new Error(`Insufficient BNB balance for gas fees. You have ${ethers.formatEther(balance)} BNB, need at least 0.0001 BNB.`);
       }
 
       // Validate metadata
       if (!nftDetails.name || nftDetails.name.trim() === '') {
         throw new Error('NFT name cannot be empty');
       }
-      
-      // Only accept IPFS/HTTP URLs - data URLs are too large for on-chain storage
-      if (!nftDetails.imageUrl || !nftDetails.imageUrl.startsWith('http')) {
-        throw new Error('Invalid image URL. Image must be uploaded to IPFS first. Data URLs are too large for on-chain storage.');
+
+      // Build metadata JSON
+      const metadata: Record<string, any> = {
+        name: nftDetails.name,
+        description: nftDetails.description || '',
+        attributes: nftDetails.attributes || [],
+      };
+
+      // Add image URL if provided (must be IPFS/HTTP URL)
+      if (nftDetails.imageUrl) {
+        if (!nftDetails.imageUrl.startsWith('http')) {
+          throw new Error('Invalid image URL. Image must be uploaded to IPFS first.');
+        }
+        metadata.image = nftDetails.imageUrl;
+        metadata.external_url = nftDetails.imageUrl;
       }
 
-      console.log('✅ Image URL validated (IPFS)');
       console.log('🎨 Minting to shared NFT collection...');
       console.log('Minter address:', wallet.address);
       console.log('Collection contract:', addresses.nftFactory);
 
-      // Create metadata JSON
-      const metadata = {
-        name: nftDetails.name,
-        description: nftDetails.description,
-        image: nftDetails.imageUrl, // Lighthouse IPFS URL
-        attributes: nftDetails.attributes || [],
-        external_url: nftDetails.imageUrl
-      };
-
-      // Upload metadata JSON to IPFS so tokenURI is a short URL (not a huge base64 blob)
-      console.log('📤 Uploading metadata JSON to IPFS...');
-      const { LighthouseService } = await import('./lighthouseService');
-      const metadataUpload = await LighthouseService.uploadJSON(metadata, `${nftDetails.name.replace(/\s+/g, '_')}_metadata.json`);
-      
+      // Upload metadata JSON to IPFS so tokenURI is a short URL
       let tokenURI: string;
-      if (metadataUpload.success && metadataUpload.url) {
-        tokenURI = metadataUpload.url;
-        console.log('✅ Metadata uploaded to IPFS:', tokenURI);
-      } else {
-        // Fallback: base64 encode metadata (only safe because imageUrl is a short IPFS URL)
-        console.log('⚠️ Metadata IPFS upload failed, using base64 fallback');
+      
+      try {
+        console.log('📤 Uploading metadata JSON to IPFS...');
+        const { LighthouseService } = await import('./lighthouseService');
+        const metadataUpload = await LighthouseService.uploadJSON(metadata, `${nftDetails.name.replace(/\\s+/g, '_')}_metadata.json`);
+        
+        if (metadataUpload.success && metadataUpload.url) {
+          tokenURI = metadataUpload.url;
+          console.log('✅ Metadata uploaded to IPFS:', tokenURI);
+        } else {
+          console.log('⚠️ Metadata IPFS upload failed:', metadataUpload.error);
+          // Fallback: use base64 data URI (only safe when image is a short IPFS URL, not a data URL)
+          const metadataJson = JSON.stringify(metadata);
+          if (metadataJson.length > 5000) {
+            throw new Error('Metadata too large for on-chain storage and IPFS upload failed. ' + (metadataUpload.error || ''));
+          }
+          tokenURI = `data:application/json;base64,${btoa(metadataJson)}`;
+          console.log('📝 Using base64 fallback tokenURI, length:', tokenURI.length);
+        }
+      } catch (uploadError) {
+        // If IPFS upload completely fails, try base64 fallback
+        console.log('⚠️ IPFS upload error, attempting base64 fallback...');
         const metadataJson = JSON.stringify(metadata);
-        // Guard: if the base64 tokenURI would be too large (>5KB), reject
         if (metadataJson.length > 5000) {
-          throw new Error('Metadata is too large for on-chain storage. Please ensure image was uploaded to IPFS successfully.');
+          throw new Error(`Cannot store metadata: IPFS upload failed and metadata too large for on-chain storage.`);
         }
         tokenURI = `data:application/json;base64,${btoa(metadataJson)}`;
       }
-      
-      console.log('📝 NFT Metadata:', {
-        name: nftDetails.name,
-        description: nftDetails.description,
-        imageUrl: nftDetails.imageUrl,
-        tokenURILength: tokenURI.length
-      });
 
-      // Final safety check: tokenURI must be reasonable size for on-chain storage
+      // Safety check
       if (tokenURI.length > 10000) {
-        throw new Error(`tokenURI is too large (${tokenURI.length} chars). This would cause gas estimation failure. Please ensure both image and metadata are uploaded to IPFS.`);
+        throw new Error(`tokenURI is too large (${tokenURI.length} chars). Please ensure metadata is uploaded to IPFS.`);
       }
 
-      // Estimate gas for the mintNFT function on OptimizedNFTFactory
+      console.log('📝 Token URI length:', tokenURI.length);
+
+      // Estimate gas for mint(string) on SimpleNFTCollection
       let gasEstimate: bigint;
       
       try {
-        console.log('⛽ Estimating gas for mintNFT...');
-        gasEstimate = await contract.mintNFT.estimateGas(
-          recipientAddress,
-          tokenURI,
-          nftDetails.name,
-          nftDetails.description || ''
-        );
-        console.log('✅ Gas estimate for mintNFT():', gasEstimate.toString());
-        
-        if (recipientAddress.toLowerCase() !== wallet.address.toLowerCase()) {
-          console.log('🎁 Gifting NFT to:', recipientAddress);
-        }
+        console.log('⛽ Estimating gas for mint()...');
+        gasEstimate = await contract.mint.estimateGas(tokenURI);
+        console.log('✅ Gas estimate for mint():', gasEstimate.toString());
       } catch (gasError) {
         console.error('❌ Gas estimation failed:', gasError);
-        throw new Error(`Failed to estimate gas for NFT minting: ${gasError instanceof Error ? gasError.message : 'Unknown error'}`);
+        // Use a safe default gas limit for minting on opBNB
+        console.log('⚠️ Using default gas limit of 300000');
+        gasEstimate = 300000n;
       }
 
       // Add 20% buffer to gas estimate
       const gasLimit = gasEstimate * 120n / 100n;
       console.log('📊 Using gas limit:', gasLimit.toString());
 
-      // Execute the minting transaction using mintNFT
-      console.log('🚀 Calling mintNFT() function...');
-      const tx = await contract.mintNFT(
-        recipientAddress,
-        tokenURI,
-        nftDetails.name,
-        nftDetails.description || '',
-        { gasLimit }
-      );
+      // Execute: mint(string uri) — mints to msg.sender (the wallet)
+      console.log('🚀 Calling mint() function...');
+      const tx = await contract.mint(tokenURI, { gasLimit });
 
       console.log('✅ Transaction sent:', tx.hash);
       console.log('⏳ Waiting for confirmation...');
@@ -264,7 +249,6 @@ export class BlockchainService {
       console.log('✅ Transaction confirmed in block:', receipt.blockNumber);
 
       // Extract token ID from the Transfer event
-      // ERC721 Transfer event: Transfer(address indexed from, address indexed to, uint256 indexed tokenId)
       const transferEvent = receipt.logs.find((log: any) => 
         log.topics[0] === ethers.id('Transfer(address,address,uint256)')
       );
@@ -601,10 +585,11 @@ export class BlockchainService {
         throw new Error('NFT collection contract address not configured');
       }
 
-      const contract = new ethers.Contract(addresses.nftFactory, OPTIMIZED_NFT_FACTORY_ABI, provider);
+      // Use the correct ABI for SimpleNFTCollection
+      const contract = new ethers.Contract(addresses.nftFactory, SIMPLE_NFT_COLLECTION_ABI, provider);
 
-      // Get all token IDs created by this user using OptimizedNFTFactory's getCreatorNFTs
-      const tokenIds = await contract.getCreatorNFTs(userAddress);
+      // Get all token IDs created by this user using SimpleNFTCollection's getTokensByCreator
+      const tokenIds = await contract.getTokensByCreator(userAddress);
       console.log(`Found ${tokenIds.length} NFTs created by user`);
 
       if (!tokenIds || tokenIds.length === 0) {
@@ -624,23 +609,36 @@ export class BlockchainService {
             return null;
           }
 
-          // Use getNFTInfo to get creator info, and standard ERC721 for owner/tokenURI
-          const [nftInfo, owner] = await Promise.all([
-            contract.getNFTInfo(tokenId),
-            contract.ownerOf(tokenId)
+          // Use SimpleNFTCollection functions: tokenURI, ownerOf, nftCreator
+          const [tokenURI, owner, creator] = await Promise.all([
+            contract.tokenURI(tokenId),
+            contract.ownerOf(tokenId),
+            contract.nftCreator(tokenId)
           ]);
-          const tokenURI = nftInfo.tokenURI;
-          const creator = nftInfo.creator;
 
-          // Parse metadata from tokenURI if it's a data URI
+          // Parse metadata from tokenURI
           let metadata;
           if (tokenURI.startsWith('data:application/json;base64,')) {
+            // Base64 encoded metadata
             try {
               const base64Data = tokenURI.split(',')[1];
               const jsonString = atob(base64Data);
               metadata = JSON.parse(jsonString);
             } catch (e) {
-              console.error(`Failed to parse metadata for token ${tokenIdStr}:`, e);
+              console.error(`Failed to parse base64 metadata for token ${tokenIdStr}:`, e);
+            }
+          } else if (tokenURI.startsWith('http')) {
+            // IPFS or HTTP URL — fetch the metadata JSON
+            try {
+              const response = await fetch(tokenURI, { signal: AbortSignal.timeout(10000) });
+              if (response.ok) {
+                const text = await response.text();
+                metadata = JSON.parse(text);
+              } else {
+                console.error(`Failed to fetch metadata for token ${tokenIdStr}: HTTP ${response.status}`);
+              }
+            } catch (e) {
+              console.error(`Failed to fetch/parse metadata for token ${tokenIdStr}:`, e);
             }
           }
 

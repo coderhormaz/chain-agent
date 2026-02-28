@@ -119,43 +119,34 @@ const NFTs: React.FC = () => {
       // Step 1: Upload image to Lighthouse IPFS
       setMintingProgress('Uploading image to Lighthouse IPFS...');
       console.log('🚀 Starting image upload to IPFS...');
-      console.log('📁 File details:', {
-        name: formData.image.name,
-        size: formData.image.size,
-        type: formData.image.type,
-        lastModified: new Date(formData.image.lastModified)
-      });
       
       // Upload to Lighthouse (IPFS)
       const uploadResult = await LighthouseService.uploadImage(formData.image);
-
       console.log('📤 Upload result received:', uploadResult);
 
-      if (!uploadResult.success || !uploadResult.url) {
-        console.error('❌ Upload failed:', uploadResult.error);
-        throw new Error(uploadResult.error || 'Failed to upload image to IPFS. Please check your Lighthouse API key.');
+      let imageUrl: string | undefined;
+      
+      if (uploadResult.success && uploadResult.url && uploadResult.url.startsWith('http')) {
+        imageUrl = uploadResult.url;
+        console.log('✅ Image uploaded to IPFS:', imageUrl);
+      } else {
+        // Image upload failed — proceed without image (metadata-only NFT)
+        console.warn('⚠️ Image IPFS upload failed:', uploadResult.error);
+        console.log('Proceeding to mint NFT without on-chain image...');
+        // Show warning but don't block minting
+        setMintingProgress('Image upload failed. Minting NFT without image...');
       }
-
-      // Reject data URLs - they are too large for on-chain tokenURI storage
-      if (uploadResult.url.startsWith('data:')) {
-        throw new Error('Image must be uploaded to IPFS. Data URLs are too large for on-chain NFT storage. Please check your Lighthouse API key configuration.');
-      }
-
-      console.log('✅ Image uploaded to IPFS successfully!');
-      console.log('🌐 Image URL:', uploadResult.url);
-      console.log('📦 IPFS Hash:', uploadResult.ipfsHash);
-      console.log('📁 File name:', uploadResult.fileName);
       
       // Step 2: Prepare NFT metadata  
-      setMintingProgress('Uploading metadata to IPFS...');
+      setMintingProgress('Minting NFT on opBNB blockchain...');
       
       const nftDetails = {
         name: formData.name,
         description: formData.description,
-        imageUrl: uploadResult.url,
+        imageUrl: imageUrl,
         attributes: [
           { trait_type: 'Creator', value: 'opBNB User' },
-          { trait_type: 'Storage', value: 'Lighthouse IPFS' },
+          { trait_type: 'Storage', value: imageUrl ? 'Lighthouse IPFS' : 'On-chain' },
           { trait_type: 'Creation Date', value: new Date().toISOString() }
         ]
       };
@@ -177,12 +168,12 @@ const NFTs: React.FC = () => {
 
       console.log('NFT minted successfully:', mintResult);
       
-      // Step 4: Add to local list (until we implement fetching from blockchain)
+      // Step 4: Add to local list
       const newNFT: NFT = {
         id: mintResult.tokenId || Date.now().toString(),
         name: formData.name,
         description: formData.description,
-        image: uploadResult.url,
+        image: imageUrl || 'https://via.placeholder.com/300x300?text=NFT',
         contractAddress: import.meta.env.VITE_NFT_FACTORY_CONTRACT || '0x...',
         tokenId: mintResult.tokenId || '0',
         metadata: {
@@ -303,14 +294,10 @@ const NFTs: React.FC = () => {
                   alt={nft.name}
                   onError={(e) => {
                     console.error('Failed to load NFT image:', nft.image);
-                    // Try to display a placeholder or log the issue
                     e.currentTarget.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iIzMzMyIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTQiIGZpbGw9IiM5OTkiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj5JbWFnZSBub3QgbG9hZGVkPC90ZXh0Pjwvc3ZnPg==';
-                    e.currentTarget.onerror = null; // Prevent infinite loop
+                    e.currentTarget.onerror = null;
                   }}
-                  onLoad={() => {
-                    console.log('✅ NFT image loaded successfully:', nft.image);
-                  }}
-                  crossOrigin="anonymous"
+                  referrerPolicy="no-referrer"
                 />
               </div>
               
