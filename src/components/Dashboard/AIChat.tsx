@@ -1,9 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { IoTrash, IoArrowForward, IoSparkles, IoWallet, IoImage, IoCube, IoSend, IoChevronDown } from 'react-icons/io5';
-import { Users, Bot, Zap, Cpu } from 'lucide-react';
+import { IoTrash, IoArrowForward, IoSparkles, IoWallet, IoImage, IoCube, IoSend } from 'react-icons/io5';
+import { Users, Bot, Zap } from 'lucide-react';
 import { useConversationStore } from '../../store/conversationStore';
-import { geminiAI, AVAILABLE_MODELS } from '../../services/geminiAI';
+import { geminiAI } from '../../services/geminiAI';
 import { UploadButton, ImagePreview } from '../UploadButton';
 import MessageRenderer from '../MessageRenderer';
 import { ContactsModal } from './ContactsModal';
@@ -26,9 +26,6 @@ const AIChat: React.FC = () => {
   const [isWaitingForNFTDetails, setIsWaitingForNFTDetails] = useState(false);
   const [pendingNFTDetails, setPendingNFTDetails] = useState<{name?: string, description?: string} | null>(null);
   const [isContactsModalOpen, setIsContactsModalOpen] = useState(false);
-  const [selectedModel, setSelectedModel] = useState(geminiAI.getModel());
-  const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
-  const modelDropdownRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -38,23 +35,6 @@ const AIChat: React.FC = () => {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
-
-  // Close model dropdown on outside click
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (modelDropdownRef.current && !modelDropdownRef.current.contains(e.target as Node)) {
-        setIsModelDropdownOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  const handleModelChange = (modelId: string) => {
-    geminiAI.setModel(modelId);
-    setSelectedModel(modelId);
-    setIsModelDropdownOpen(false);
-  };
 
   const handleSendMessage = async () => {
     // Prevent sending empty messages
@@ -416,34 +396,6 @@ Please try again with a different image or check your internet connection.`,
           </div>
         </div>
         <div className="chat-actions">
-          {/* Model Selector */}
-          <div className="model-selector" ref={modelDropdownRef}>
-            <button
-              className="model-selector-trigger"
-              onClick={() => setIsModelDropdownOpen(!isModelDropdownOpen)}
-            >
-              <Cpu size={13} />
-              <span>{AVAILABLE_MODELS.find(m => m.id === selectedModel)?.name || 'Select Model'}</span>
-              <IoChevronDown size={12} className={`model-chevron ${isModelDropdownOpen ? 'open' : ''}`} />
-            </button>
-            {isModelDropdownOpen && (
-              <div className="model-dropdown">
-                {AVAILABLE_MODELS.map((model) => (
-                  <button
-                    key={model.id}
-                    className={`model-option ${model.id === selectedModel ? 'active' : ''}`}
-                    onClick={() => handleModelChange(model.id)}
-                  >
-                    <div className="model-option-info">
-                      <span className="model-option-name">{model.name}</span>
-                      <span className="model-option-provider">{model.provider}</span>
-                    </div>
-                    {model.isFree && <span className="model-free-badge">Free</span>}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
           <button
             className="chat-action-btn"
             onClick={() => setIsContactsModalOpen(true)}
