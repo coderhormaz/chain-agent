@@ -9,14 +9,13 @@ const OPTIMIZED_TOKEN_FACTORY_ABI = [
   "function getTotalTokensCount() external view returns (uint256)"
 ];
 
-// Simple NFT Collection ABI - Shared collection where anyone can mint
-const SIMPLE_NFT_COLLECTION_ABI = [
-  "function mint(string calldata uri) external returns (uint256)",
-  "function mintTo(address to, string calldata uri) external returns (uint256)",
-  "function batchMint(string[] calldata uris) external returns (uint256[])",
-  "function getTokensByCreator(address creator) external view returns (uint256[])",
+// OptimizedNFTFactory ABI - Matches the deployed contract on opBNB
+const OPTIMIZED_NFT_FACTORY_ABI = [
+  "function mintNFT(address to, string calldata uri, string calldata name, string calldata description) external returns (uint256)",
+  "function batchMintNFT(address[] calldata recipients, string[] calldata tokenURIs, string[] calldata names, string[] calldata descriptions) external returns (uint256[])",
+  "function getCreatorNFTs(address creator) external view returns (uint256[])",
+  "function getNFTInfo(uint256 tokenId) external view returns (tuple(address creator, uint96 timestamp, string name, string description, string tokenURI))",
   "function totalSupply() external view returns (uint256)",
-  "function getCreator(uint256 tokenId) external view returns (address)",
   "function exists(uint256 tokenId) external view returns (bool)",
   "function ownerOf(uint256 tokenId) external view returns (address)",
   "function tokenURI(uint256 tokenId) external view returns (string memory)"
@@ -133,7 +132,7 @@ export class BlockchainService {
         throw new Error(`No contract found at address ${addresses.nftFactory}. Contract may not be deployed.`);
       }
 
-      const contract = new ethers.Contract(addresses.nftFactory, SIMPLE_NFT_COLLECTION_ABI, wallet);
+      const contract = new ethers.Contract(addresses.nftFactory, OPTIMIZED_NFT_FACTORY_ABI, wallet);
 
       // Try to call a view function to verify the contract interface
       try {
@@ -202,21 +201,20 @@ export class BlockchainService {
       console.log('Minter address:', wallet.address);
       console.log('Collection contract:', addresses.nftFactory);
 
-      // Estimate gas for the simple mint function
+      // Estimate gas for the mintNFT function on OptimizedNFTFactory
       let gasEstimate: bigint;
       
       try {
-        console.log('⛽ Estimating gas...');
+        console.log('⛽ Estimating gas for mintNFT...');
+        gasEstimate = await contract.mintNFT.estimateGas(
+          recipientAddress,
+          tokenURI,
+          nftDetails.name,
+          nftDetails.description || ''
+        );
+        console.log('✅ Gas estimate for mintNFT():', gasEstimate.toString());
         
-        // Use mint() if minting to self, or mintTo() if gifting to someone else
-        const mintingToSelf = recipientAddress.toLowerCase() === wallet.address.toLowerCase();
-        
-        if (mintingToSelf) {
-          gasEstimate = await contract.mint.estimateGas(tokenURI);
-          console.log('✅ Gas estimate for mint():', gasEstimate.toString());
-        } else {
-          gasEstimate = await contract.mintTo.estimateGas(recipientAddress, tokenURI);
-          console.log('✅ Gas estimate for mintTo():', gasEstimate.toString());
+        if (recipientAddress.toLowerCase() !== wallet.address.toLowerCase()) {
           console.log('🎁 Gifting NFT to:', recipientAddress);
         }
       } catch (gasError) {
@@ -228,17 +226,15 @@ export class BlockchainService {
       const gasLimit = gasEstimate * 120n / 100n;
       console.log('📊 Using gas limit:', gasLimit.toString());
 
-      // Execute the minting transaction
-      let tx;
-      const mintingToSelf = recipientAddress.toLowerCase() === wallet.address.toLowerCase();
-      
-      if (mintingToSelf) {
-        console.log('🚀 Calling mint() function...');
-        tx = await contract.mint(tokenURI, { gasLimit });
-      } else {
-        console.log('🎁 Calling mintTo() function...');
-        tx = await contract.mintTo(recipientAddress, tokenURI, { gasLimit });
-      }
+      // Execute the minting transaction using mintNFT
+      console.log('🚀 Calling mintNFT() function...');
+      const tx = await contract.mintNFT(
+        recipientAddress,
+        tokenURI,
+        nftDetails.name,
+        nftDetails.description || '',
+        { gasLimit }
+      );
 
       console.log('✅ Transaction sent:', tx.hash);
       console.log('⏳ Waiting for confirmation...');
@@ -584,10 +580,10 @@ export class BlockchainService {
         throw new Error('NFT collection contract address not configured');
       }
 
-      const contract = new ethers.Contract(addresses.nftFactory, SIMPLE_NFT_COLLECTION_ABI, provider);
+      const contract = new ethers.Contract(addresses.nftFactory, OPTIMIZED_NFT_FACTORY_ABI, provider);
 
-      // Get all token IDs created by this user
-      const tokenIds = await contract.getTokensByCreator(userAddress);
+      // Get all token IDs created by this user using OptimizedNFTFactory's getCreatorNFTs
+      const tokenIds = await contract.getCreatorNFTs(userAddress);
       console.log(`Found ${tokenIds.length} NFTs created by user`);
 
       if (!tokenIds || tokenIds.length === 0) {
@@ -607,11 +603,13 @@ export class BlockchainService {
             return null;
           }
 
-          const [tokenURI, owner, creator] = await Promise.all([
-            contract.tokenURI(tokenId),
-            contract.ownerOf(tokenId),
-            contract.getCreator(tokenId)
+          // Use getNFTInfo to get creator info, and standard ERC721 for owner/tokenURI
+          const [nftInfo, owner] = await Promise.all([
+            contract.getNFTInfo(tokenId),
+            contract.ownerOf(tokenId)
           ]);
+          const tokenURI = nftInfo.tokenURI;
+          const creator = nftInfo.creator;
 
           // Parse metadata from tokenURI if it's a data URI
           let metadata;
