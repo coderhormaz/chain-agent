@@ -1,0 +1,12 @@
+{
+    "css.lint.unknownAtRules": "ignore",
+    "css.lint.vendorPrefix": "ignore",
+    "chat.mcp.serverSampling": {
+        "Final_Year_Project/.vscode/mcp.json: @21st-dev/magic": {
+            "allowedModels": [
+                "copilot/auto",
+                "copilotcli/claude-sonnet-4.6"
+            ]
+        }
+    }
+}

@@ -133,8 +133,7 @@ export const Hero: React.FC = () => {
             animate="visible"
           >
             Deploy smart contracts, create tokens, and mint NFTs using
-            AI&nbsp;&mdash;&nbsp;with ultra&#8209;low fees and lightning&#8209;fast
-            transactions.
+            our AI Agent
           </motion.p>
 
           {/* actions */}
