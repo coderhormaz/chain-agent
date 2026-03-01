@@ -11,7 +11,6 @@ console.log('🔗 Connecting to Supabase:', supabaseUrl);
 
 // Storage constants
 const STORAGE_KEY = 'opbnb-ai-auth';
-const REMEMBER_ME_KEY = 'opbnb-ai-remember-me';
 
 // Storage adapter — always use localStorage so the Supabase session token
 // survives same-tab navigations to external sites (sessionStorage is scoped

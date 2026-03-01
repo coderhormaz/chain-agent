@@ -148,7 +148,7 @@ export class ContactService {
         .order('contact_name', { ascending: true });
 
       // Safety-net timeout — should never trigger now that the lock has a cap
-      const { data, error } = await withTimeout(query, 15000, 'Contacts query');
+      const { data, error } = await withTimeout(Promise.resolve(query), 15000, 'Contacts query');
 
       if (error) {
         console.error('[ContactService] Error:', error);
