@@ -64,7 +64,7 @@ export const Hero: React.FC = () => {
       { text: 'with' },
       { text: 'a' },
       { text: 'single' },
-      { text: 'command.', accent: true },
+      { text: 'command', accent: true },
     ],
   ];
 
@@ -133,9 +133,10 @@ export const Hero: React.FC = () => {
             animate="visible"
           >
             Deploy smart contracts, create tokens, and mint NFTs using
-            our AI Agent.
+            AI&nbsp;&mdash;&nbsp;with ultra&#8209;low fees and lightning&#8209;fast
+            transactions.
           </motion.p>
-<br />
+
           {/* actions */}
           <motion.div
             className="hero-actions"
@@ -157,13 +158,14 @@ export const Hero: React.FC = () => {
 
             <motion.button
               className="hero-btn hero-btn--ghost"
+              onClick={() => document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' })}
               whileHover={{ scale: 1.03 }}
               whileTap={{ scale: 0.97 }}
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <polygon points="5 3 19 12 5 21 5 3" />
               </svg>
-              Watch Demo
+              Explore Features
             </motion.button>
           </motion.div>
 
