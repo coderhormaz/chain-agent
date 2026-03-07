@@ -64,7 +64,7 @@ export const Hero: React.FC = () => {
       { text: 'with' },
       { text: 'a' },
       { text: 'single' },
-      { text: 'command', accent: true },
+      { text: 'command.', accent: true },
     ],
   ];
 
@@ -133,9 +133,9 @@ export const Hero: React.FC = () => {
             animate="visible"
           >
             Deploy smart contracts, create tokens, and mint NFTs using
-            our AI Agent
+            our AI Agent.
           </motion.p>
-
+<br />
           {/* actions */}
           <motion.div
             className="hero-actions"

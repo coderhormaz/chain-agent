@@ -1,0 +1,80 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>ChainAgent - Use Case Diagram</title>
+  <style>
+    body { font-family: "Segoe UI", sans-serif; background: #fff; display: flex; justify-content: center; padding: 40px; }
+  </style>
+</head>
+<body>
+<svg viewBox="0 0 960 660" width="960" height="660" xmlns="http://www.w3.org/2000/svg">
+
+  <!-- Title -->
+  <text x="480" y="24" text-anchor="middle" font-size="17" font-weight="bold" fill="#000">ChainAgent - Use Case Diagram</text>
+
+  <!-- System boundary -->
+  <rect x="175" y="40" width="580" height="570" rx="10" fill="none" stroke="#000" stroke-width="2"/>
+  <text x="465" y="62" text-anchor="middle" font-size="12" fill="#000">ChainAgent</text>
+
+  <!-- ══ Actor: User (left, centred) ══ -->
+  <circle cx="80" cy="272" r="20" fill="none" stroke="#000" stroke-width="2"/>
+  <line x1="80" y1="292" x2="80" y2="337" stroke="#000" stroke-width="2"/>
+  <line x1="53" y1="312" x2="107" y2="312" stroke="#000" stroke-width="2"/>
+  <line x1="80" y1="337" x2="55" y2="372" stroke="#000" stroke-width="2"/>
+  <line x1="80" y1="337" x2="105" y2="372" stroke="#000" stroke-width="2"/>
+  <text x="80" y="392" text-anchor="middle" font-size="13" font-weight="600" fill="#000">User</text>
+
+  <!-- ══ Actor: Artist / Creator (right, centred) ══ -->
+  <circle cx="882" cy="272" r="20" fill="none" stroke="#000" stroke-width="2"/>
+  <line x1="882" y1="292" x2="882" y2="337" stroke="#000" stroke-width="2"/>
+  <line x1="855" y1="312" x2="909" y2="312" stroke="#000" stroke-width="2"/>
+  <line x1="882" y1="337" x2="857" y2="372" stroke="#000" stroke-width="2"/>
+  <line x1="882" y1="337" x2="907" y2="372" stroke="#000" stroke-width="2"/>
+  <text x="882" y="392" text-anchor="middle" font-size="13" font-weight="600" fill="#000">Artist /</text>
+  <text x="882" y="409" text-anchor="middle" font-size="13" font-weight="600" fill="#000">Creator</text>
+
+
+
+  <!-- ══ UC1: Sign Up / Sign In ══ -->
+  <ellipse cx="455" cy="115" rx="135" ry="30" fill="#fff" stroke="#000" stroke-width="1.5"/>
+  <text x="455" y="111" text-anchor="middle" font-size="12" fill="#000">Sign Up / Sign In</text>
+  <text x="455" y="127" text-anchor="middle" font-size="12" fill="#000">and Reset Password</text>
+
+  <!-- ══ UC2: Chat with AI ══ -->
+  <ellipse cx="455" cy="215" rx="135" ry="30" fill="#fff" stroke="#000" stroke-width="1.5"/>
+  <text x="455" y="211" text-anchor="middle" font-size="12" fill="#000">Chat with</text>
+  <text x="455" y="227" text-anchor="middle" font-size="12" fill="#000">ChainAgent AI</text>
+
+  <!-- ══ UC3: Manage Wallet ══ -->
+  <ellipse cx="455" cy="310" rx="135" ry="30" fill="#fff" stroke="#000" stroke-width="1.5"/>
+  <text x="455" y="306" text-anchor="middle" font-size="12" fill="#000">Manage Wallet</text>
+  <text x="455" y="322" text-anchor="middle" font-size="12" fill="#000">and Send BNB</text>
+
+  <!-- ══ UC4: Create Token / Mint NFT ══ -->
+  <ellipse cx="455" cy="415" rx="135" ry="30" fill="#fff" stroke="#000" stroke-width="1.5"/>
+  <text x="455" y="411" text-anchor="middle" font-size="12" fill="#000">Create Token /</text>
+  <text x="455" y="427" text-anchor="middle" font-size="12" fill="#000">Mint NFT</text>
+
+  <!-- ══ UC5: Manage Contacts ══ -->
+  <ellipse cx="455" cy="510" rx="135" ry="30" fill="#fff" stroke="#000" stroke-width="1.5"/>
+  <text x="455" y="506" text-anchor="middle" font-size="12" fill="#000">Manage</text>
+  <text x="455" y="522" text-anchor="middle" font-size="12" fill="#000">Contacts</text>
+
+  <!-- ══ User associations (from arm end 107,312 to left edge of ellipses) ══ -->
+  <line x1="107" y1="312" x2="320" y2="115" stroke="#000" stroke-width="1.5"/>
+  <line x1="107" y1="312" x2="320" y2="215" stroke="#000" stroke-width="1.5"/>
+  <line x1="107" y1="312" x2="320" y2="310" stroke="#000" stroke-width="1.5"/>
+  <line x1="107" y1="312" x2="320" y2="510" stroke="#000" stroke-width="1.5"/>
+
+  <!-- ══ Artist / Creator associations (from arm end 855,312 to right edge of ellipses) ══ -->
+  <line x1="855" y1="312" x2="590" y2="215" stroke="#000" stroke-width="1.5"/>
+  <line x1="855" y1="312" x2="590" y2="415" stroke="#000" stroke-width="1.5"/>
+
+  <!-- ══ Legend ══ -->
+  <line x1="220" y1="628" x2="270" y2="628" stroke="#000" stroke-width="1.5"/>
+  <text x="278" y="632" font-size="11" fill="#000">Association (actor to use case)</text>
+
+</svg>
+</body>
+</html>
