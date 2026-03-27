@@ -1,18 +1,6 @@
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store/authStore';
 
-/**
- * Wraps a promise with a timeout. Rejects if the promise doesn't settle
- * within `ms` milliseconds.
- */
-function withTimeout<T>(promise: Promise<T>, ms: number, label = 'Operation'): Promise<T> {
-  let timer: ReturnType<typeof setTimeout>;
-  const timeout = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
-  });
-  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
-}
-
 export interface Contact {
   id: string;
   user_id: string;
@@ -34,22 +22,42 @@ export interface UpdateContactData {
 
 export class ContactService {
   /**
-   * Helper method to get current authenticated user
-   * Simplified - RLS is disabled so just need user ID
+   * Get the current user's ID from the auth store (synchronous, never hangs).
+   * The Supabase client handles JWT/session internally for every REST call,
+   * so we only need the user ID for the `user_id` column value.
    */
-  private static async getCurrentUser() {
-    console.log('[ContactService] Getting current user...');
-    
-    // Get user from auth store
+  private static getCurrentUserId(): string {
     const authUser = useAuthStore.getState().user;
-    
     if (!authUser) {
-      console.error('[ContactService] No user in store');
       throw new Error('Please sign in to manage contacts');
     }
-    
-    console.log('[ContactService] User:', authUser.id);
-    return authUser;
+    return authUser.id;
+  }
+
+  /**
+   * Ensure the Supabase client has a valid session before making queries.
+   * Races against a short timeout so it never blocks the UI for too long.
+   * If this fails, queries still run — the Supabase client will attempt its
+   * own internal refresh via autoRefreshToken.
+   */
+  private static async ensureSession(): Promise<void> {
+    try {
+      const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000));
+      const sessionPromise = supabase.auth.getSession().then(({ data }) => data.session);
+      const session = await Promise.race([sessionPromise, timeoutPromise]);
+
+      if (!session) {
+        // No session or timed out — try a quick refresh
+        const refreshPromise = supabase.auth.refreshSession().then(({ data }) => data.session);
+        const refreshed = await Promise.race([refreshPromise, timeoutPromise]);
+        if (refreshed?.user) {
+          useAuthStore.getState().setUser(refreshed.user);
+        }
+      }
+    } catch (e) {
+      // Non-fatal: the Supabase client will still try internally
+      console.warn('[ContactService] ensureSession failed (non-fatal):', e);
+    }
   }
 
   /**
@@ -57,269 +65,223 @@ export class ContactService {
    */
   static async addContact(contactData: CreateContactData): Promise<Contact> {
     console.log('[ContactService] addContact called with:', contactData);
-    try {
-      const user = await this.getCurrentUser();
-      console.log('[ContactService] User ID:', user.id);
+    const userId = this.getCurrentUserId();
 
-      // Validate wallet address format
-      console.log('[ContactService] Validating wallet address:', contactData.wallet_address);
-      if (!this.isValidWalletAddress(contactData.wallet_address)) {
-        console.error('[ContactService] Invalid wallet address format');
-        throw new Error('Invalid wallet address format');
-      }
-      console.log('[ContactService] Wallet address valid');
-
-      const insertData = {
-        user_id: user.id,
-        contact_name: contactData.contact_name.trim(),
-        wallet_address: contactData.wallet_address.toLowerCase()
-      };
-      console.log('[ContactService] Inserting contact:', insertData);
-
-      // Simple insert - no session checks needed since RLS is disabled
-      const { data, error } = await supabase
-        .from('contacts')
-        .insert(insertData)
-        .select()
-        .single();
-
-      console.log('[ContactService] Supabase response - data:', data, 'error:', error);
-
-      if (error) {
-        console.error('[ContactService] Supabase error details:', {
-          code: error.code,
-          message: error.message,
-          details: error.details,
-          hint: error.hint,
-          full: error
-        });
-        
-        // Handle specific errors
-        if (error.code === '23505') {
-          if (error.message.includes('unique_user_contact_name') || error.message.includes('contacts_user_id_contact_name_key')) {
-            throw new Error('A contact with this name already exists');
-          } else if (error.message.includes('unique_user_wallet') || error.message.includes('contacts_user_id_wallet_address_key')) {
-            throw new Error('This wallet address is already in your contacts');
-          }
-        }
-
-        // Handle RLS policy errors
-        if (error.code === '42501' || error.message?.includes('policy')) {
-          throw new Error('Permission denied. Please refresh the page and try again.');
-        }
-        
-        throw new Error(error.message || 'Failed to add contact');
-      }
-
-      console.log('[ContactService] Contact added successfully:', data);
-      return data;
-    } catch (error) {
-      console.error('[ContactService] addContact error:', error);
-      
-      // Handle timeout errors
-      if (error instanceof Error) {
-        if (error.message.includes('timeout') || error.message.includes('Timeout')) {
-          console.error('[ContactService] Operation timed out');
-          throw new Error('Operation timed out. Please check your connection and try again.');
-        }
-      }
-      
-      throw error;
+    // Validate wallet address format
+    if (!this.isValidWalletAddress(contactData.wallet_address)) {
+      throw new Error('Invalid wallet address format');
     }
+
+    const insertData = {
+      user_id: userId,
+      contact_name: contactData.contact_name.trim(),
+      wallet_address: contactData.wallet_address.toLowerCase()
+    };
+
+    // Ensure we have a valid session before the insert
+    await this.ensureSession();
+
+    const { data, error } = await supabase
+      .from('contacts')
+      .insert(insertData)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('[ContactService] Insert error:', error.code, error.message);
+
+      // Handle JWT expiration — refresh and retry once
+      if (error.message?.includes('JWT expired') || error.code === 'PGRST301' ||
+          error.code === '42501' || error.message?.includes('policy')) {
+        console.log('[ContactService] Auth issue, refreshing session and retrying...');
+        try {
+          await supabase.auth.refreshSession();
+          const retry = await supabase
+            .from('contacts')
+            .insert(insertData)
+            .select()
+            .single();
+          if (!retry.error) {
+            return retry.data;
+          }
+          console.error('[ContactService] Retry also failed:', retry.error);
+        } catch (refreshErr) {
+          console.error('[ContactService] Refresh failed:', refreshErr);
+        }
+        throw new Error('Permission denied. Please sign out and sign back in.');
+      }
+
+      // Handle unique constraint violations
+      if (error.code === '23505') {
+        if (error.message.includes('unique_user_contact_name') || error.message.includes('contacts_user_id_contact_name_key')) {
+          throw new Error('A contact with this name already exists');
+        } else if (error.message.includes('unique_user_wallet') || error.message.includes('contacts_user_id_wallet_address_key')) {
+          throw new Error('This wallet address is already in your contacts');
+        }
+      }
+
+      throw new Error(error.message || 'Failed to add contact');
+    }
+
+    console.log('[ContactService] Contact added successfully:', data);
+    return data;
   }
 
   /**
    * Get all contacts for the current user.
-   * The Supabase client now has a custom lock with a 5-second timeout, so
-   * internal getSession() calls can no longer hang forever. We still wrap
-   * the whole operation in a generous 15-second timeout as a safety net.
    */
   static async getAllContacts(): Promise<Contact[]> {
     console.log('[ContactService] getAllContacts called');
+    const userId = this.getCurrentUserId();
 
-    try {
-      const user = await this.getCurrentUser();
-      console.log('[ContactService] Fetching contacts for user:', user.id);
+    // Ensure session is valid before querying
+    await this.ensureSession();
 
-      const query = supabase
-        .from('contacts')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('contact_name', { ascending: true });
+    const { data, error } = await supabase
+      .from('contacts')
+      .select('*')
+      .eq('user_id', userId)
+      .order('contact_name', { ascending: true });
 
-      // Safety-net timeout — should never trigger now that the lock has a cap
-      const { data, error } = await withTimeout(Promise.resolve(query), 15000, 'Contacts query');
+    if (error) {
+      console.error('[ContactService] Error:', error.code, error.message);
 
-      if (error) {
-        console.error('[ContactService] Error:', error);
-        throw new Error(error.message || 'Failed to fetch contacts');
+      // Auth/RLS issues — try refreshing and retrying once
+      if (error.message?.includes('JWT expired') || error.code === 'PGRST301' ||
+          error.code === '42501' || error.message?.includes('policy')) {
+        console.log('[ContactService] Auth issue, refreshing and retrying...');
+        try {
+          await supabase.auth.refreshSession();
+          const retry = await supabase
+            .from('contacts')
+            .select('*')
+            .eq('user_id', userId)
+            .order('contact_name', { ascending: true });
+          if (!retry.error) {
+            return retry.data || [];
+          }
+        } catch (refreshErr) {
+          console.error('[ContactService] Refresh failed:', refreshErr);
+        }
+        throw new Error('Session expired. Please sign out and sign back in.');
       }
-
-      console.log('[ContactService] Found', data?.length || 0, 'contacts');
-      return data || [];
-    } catch (error) {
-      console.error('[ContactService] getAllContacts failed:', error);
-      throw error;
+      throw new Error(error.message || 'Failed to fetch contacts');
     }
+
+    console.log('[ContactService] Found', data?.length || 0, 'contacts');
+    return data || [];
   }
 
   /**
    * Search for a contact by name (case-insensitive, supports partial match)
    */
   static async searchContactByName(name: string): Promise<Contact | null> {
-    console.log('[ContactService] searchContactByName called with:', name);
-    try {
-      const user = await this.getCurrentUser();
-      console.log('[ContactService] User ID:', user.id);
-      
-      const searchName = name.trim();
-      console.log('[ContactService] Searching for contact with name:', searchName);
+    const userId = this.getCurrentUserId();
+    const searchName = name.trim();
+    await this.ensureSession();
 
-      // First try exact match (case-insensitive)
-      let { data, error } = await supabase
+    // First try exact match (case-insensitive)
+    let { data, error } = await supabase
+      .from('contacts')
+      .select('*')
+      .eq('user_id', userId)
+      .ilike('contact_name', searchName)
+      .maybeSingle();
+
+    // If no exact match, try partial match
+    if (!data && !error) {
+      const { data: partialData, error: partialError } = await supabase
         .from('contacts')
         .select('*')
-        .eq('user_id', user.id)
-        .ilike('contact_name', searchName)
+        .eq('user_id', userId)
+        .ilike('contact_name', `%${searchName}%`)
+        .limit(1)
         .maybeSingle();
-
-      console.log('[ContactService] Exact match result - data:', data, 'error:', error);
-
-      // If no exact match, try partial match
-      if (!data && !error) {
-        console.log('[ContactService] No exact match, trying partial match...');
-        const { data: partialData, error: partialError } = await supabase
-          .from('contacts')
-          .select('*')
-          .eq('user_id', user.id)
-          .ilike('contact_name', `%${searchName}%`)
-          .limit(1)
-          .maybeSingle();
-        
-        console.log('[ContactService] Partial match result - data:', partialData, 'error:', partialError);
-        data = partialData;
-        error = partialError;
-      }
-
-      if (error) {
-        console.error('[ContactService] Supabase error:', error);
-        throw new Error(error.message || 'Failed to search contact');
-      }
-
-      console.log('[ContactService] Returning contact:', data);
-      return data;
-    } catch (error) {
-      console.error('[ContactService] searchContactByName error:', error);
-      throw error;
+      data = partialData;
+      error = partialError;
     }
+
+    if (error) {
+      throw new Error(error.message || 'Failed to search contact');
+    }
+
+    return data;
   }
 
   /**
    * Search contacts by partial name match (for autocomplete)
    */
   static async searchContactsByPartialName(partialName: string): Promise<Contact[]> {
-    try {
-      const user = await this.getCurrentUser();
+    const userId = this.getCurrentUserId();
+    await this.ensureSession();
 
-      const { data, error } = await supabase
-        .from('contacts')
-        .select('*')
-        .eq('user_id', user.id)
-        .ilike('contact_name', `%${partialName.trim()}%`)
-        .order('contact_name', { ascending: true });
+    const { data, error } = await supabase
+      .from('contacts')
+      .select('*')
+      .eq('user_id', userId)
+      .ilike('contact_name', `%${partialName.trim()}%`)
+      .order('contact_name', { ascending: true });
 
-      if (error) {
-        console.error('Error searching contacts:', error);
-        throw new Error(error.message || 'Failed to search contacts');
-      }
-
-      return data || [];
-    } catch (error) {
-      console.error('ContactService.searchContactsByPartialName error:', error);
-      throw error;
+    if (error) {
+      throw new Error(error.message || 'Failed to search contacts');
     }
+
+    return data || [];
   }
 
   /**
    * Update an existing contact
    */
   static async updateContact(contactId: string, updates: UpdateContactData): Promise<Contact> {
-    console.log('[ContactService] updateContact called with:', contactId, updates);
-    try {
-      console.log('[ContactService] Getting current user...');
-      const user = await this.getCurrentUser();
-      console.log('[ContactService] User ID:', user.id);
+    const userId = this.getCurrentUserId();
 
-      // Validate wallet address if it's being updated
-      if (updates.wallet_address) {
-        console.log('[ContactService] Validating wallet address:', updates.wallet_address);
-        if (!this.isValidWalletAddress(updates.wallet_address)) {
-          console.error('[ContactService] Invalid wallet address format');
-          throw new Error('Invalid wallet address format');
-        }
-        console.log('[ContactService] Wallet address valid');
-      }
-
-      // Prepare update data
-      const updateData: any = {};
-      if (updates.contact_name) updateData.contact_name = updates.contact_name.trim();
-      if (updates.wallet_address) updateData.wallet_address = updates.wallet_address.toLowerCase();
-      console.log('[ContactService] Update data prepared:', updateData);
-
-      console.log('[ContactService] Updating in Supabase...');
-      const { data, error } = await supabase
-        .from('contacts')
-        .update(updateData)
-        .eq('id', contactId)
-        .eq('user_id', user.id)
-        .select()
-        .single();
-
-      console.log('[ContactService] Supabase response - data:', data, 'error:', error);
-
-      if (error) {
-        console.error('[ContactService] Supabase error:', error);
-        
-        // Handle specific errors
-        if (error.code === '23505') {
-          if (error.message.includes('unique_user_contact_name') || error.message.includes('contacts_user_id_contact_name_key')) {
-            throw new Error('A contact with this name already exists');
-          } else if (error.message.includes('unique_user_wallet') || error.message.includes('contacts_user_id_wallet_address_key')) {
-            throw new Error('This wallet address is already in your contacts');
-          }
-        }
-        
-        throw new Error(error.message || 'Failed to update contact');
-      }
-
-      console.log('[ContactService] Contact updated successfully:', data);
-      return data;
-    } catch (error) {
-      console.error('[ContactService] updateContact error:', error);
-      throw error;
+    if (updates.wallet_address && !this.isValidWalletAddress(updates.wallet_address)) {
+      throw new Error('Invalid wallet address format');
     }
+
+    const updateData: Record<string, string> = {};
+    if (updates.contact_name) updateData.contact_name = updates.contact_name.trim();
+    if (updates.wallet_address) updateData.wallet_address = updates.wallet_address.toLowerCase();
+
+    await this.ensureSession();
+
+    const { data, error } = await supabase
+      .from('contacts')
+      .update(updateData)
+      .eq('id', contactId)
+      .eq('user_id', userId)
+      .select()
+      .single();
+
+    if (error) {
+      if (error.code === '23505') {
+        if (error.message.includes('unique_user_contact_name') || error.message.includes('contacts_user_id_contact_name_key')) {
+          throw new Error('A contact with this name already exists');
+        } else if (error.message.includes('unique_user_wallet') || error.message.includes('contacts_user_id_wallet_address_key')) {
+          throw new Error('This wallet address is already in your contacts');
+        }
+      }
+      throw new Error(error.message || 'Failed to update contact');
+    }
+
+    return data;
   }
 
   /**
    * Delete a contact
    */
   static async deleteContact(contactId: string): Promise<void> {
-    try {
-      const user = await this.getCurrentUser();
+    const userId = this.getCurrentUserId();
+    await this.ensureSession();
 
-      const { error } = await supabase
-        .from('contacts')
-        .delete()
-        .eq('id', contactId)
-        .eq('user_id', user.id);
+    const { error } = await supabase
+      .from('contacts')
+      .delete()
+      .eq('id', contactId)
+      .eq('user_id', userId);
 
-      if (error) {
-        console.error('Error deleting contact:', error);
-        throw new Error(error.message || 'Failed to delete contact');
-      }
-    } catch (error) {
-      console.error('ContactService.deleteContact error:', error);
-      throw error;
+    if (error) {
+      throw new Error(error.message || 'Failed to delete contact');
     }
   }
 
@@ -327,29 +289,22 @@ export class ContactService {
    * Get a single contact by ID
    */
   static async getContactById(contactId: string): Promise<Contact | null> {
-    try {
-      const user = await this.getCurrentUser();
+    const userId = this.getCurrentUserId();
+    await this.ensureSession();
 
-      const { data, error } = await supabase
-        .from('contacts')
-        .select('*')
-        .eq('id', contactId)
-        .eq('user_id', user.id)
-        .single();
+    const { data, error } = await supabase
+      .from('contacts')
+      .select('*')
+      .eq('id', contactId)
+      .eq('user_id', userId)
+      .single();
 
-      if (error) {
-        if (error.code === 'PGRST116') {
-          return null;
-        }
-        console.error('Error fetching contact:', error);
-        throw new Error(error.message || 'Failed to fetch contact');
-      }
-
-      return data;
-    } catch (error) {
-      console.error('ContactService.getContactById error:', error);
-      throw error;
+    if (error) {
+      if (error.code === 'PGRST116') return null;
+      throw new Error(error.message || 'Failed to fetch contact');
     }
+
+    return data;
   }
 
   /**
@@ -364,21 +319,17 @@ export class ContactService {
    */
   static async getContactCount(): Promise<number> {
     try {
-      const user = await this.getCurrentUser();
+      const userId = this.getCurrentUserId();
+      await this.ensureSession();
 
       const { count, error } = await supabase
         .from('contacts')
         .select('*', { count: 'exact', head: true })
-        .eq('user_id', user.id);
+        .eq('user_id', userId);
 
-      if (error) {
-        console.error('Error counting contacts:', error);
-        return 0;
-      }
-
+      if (error) return 0;
       return count || 0;
-    } catch (error) {
-      console.error('ContactService.getContactCount error:', error);
+    } catch {
       return 0;
     }
   }

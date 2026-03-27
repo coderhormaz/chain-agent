@@ -62,7 +62,8 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
       } catch (err) {
         if (cancelled) return;
         console.error('[ContactsModal] Fetch error:', err);
-        if (err instanceof Error && err.message.includes('not authenticated') && retryCount < 2) {
+        const msg = err instanceof Error ? err.message : '';
+        if ((msg.includes('sign in') || msg.includes('expired') || msg.includes('not authenticated')) && retryCount < 2) {
           console.log('[ContactsModal] Auth error, retrying...');
           setTimeout(() => attemptFetch(retryCount + 1), 1000);
         } else {
@@ -72,7 +73,7 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
     };
 
     // Small delay lets the store's resetLoadingState settle
-    const id = setTimeout(() => attemptFetch(), 50);
+    const id = setTimeout(() => attemptFetch(), 100);
 
     return () => {
       cancelled = true;
