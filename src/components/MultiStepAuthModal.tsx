@@ -84,7 +84,7 @@ export const MultiStepAuthModal: React.FC = () => {
       const result = await Promise.race([
         loginPromise,
         timeoutPromise
-      ]) as Awaited<typeof loginPromise>;
+      ]) as { user: import('@supabase/supabase-js').User; wallet: UserWallet | null };
       
       const { user, wallet } = result;
       

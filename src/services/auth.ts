@@ -153,9 +153,9 @@ export class AuthService {
           setTimeout(() => reject(new Error('Wallet fetch timeout')), 10000)
         );
 
-        let wallet;
+        let wallet: UserWallet | null;
         try {
-          wallet = await Promise.race([walletPromise, walletTimeoutPromise]);
+          wallet = await Promise.race([walletPromise, walletTimeoutPromise]) as UserWallet | null;
         } catch (walletError) {
           console.warn('⚠️ Wallet fetch failed:', walletError);
           // Continue with login even if wallet fetch fails
