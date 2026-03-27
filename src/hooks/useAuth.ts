@@ -68,15 +68,23 @@ export const useAuth = () => {
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_IN' && session?.user) {
-        const userWallet = await AuthService.getUserWallet(session.user.id);
         setUser(session.user);
         setAuthUser(session.user);
+
+        // Wallet may not be inserted yet during signup (race condition).
+        // Retry once after a short delay if the first fetch returns null.
+        let userWallet = await AuthService.getUserWallet(session.user.id);
+        if (!userWallet) {
+          await new Promise(r => setTimeout(r, 2000));
+          userWallet = await AuthService.getUserWallet(session.user.id);
+        }
+
         setWallet(userWallet);
         
         if (userWallet) {
           setNewWallet({
             address: userWallet.wallet_address,
-            privateKey: userWallet.encrypted_private_key // This would need decryption in real app
+            privateKey: userWallet.encrypted_private_key
           });
           
           const balance = await WalletService.getBalance(userWallet.wallet_address);

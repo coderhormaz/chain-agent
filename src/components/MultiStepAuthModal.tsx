@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuthModalStore, useWalletStore } from '../store';
+import { useWalletStore as useDashboardWalletStore } from '../store/walletStore';
 import { AuthService } from '../services/auth';
 import type { UserWallet } from '../lib/supabase';
 
@@ -17,6 +18,7 @@ interface SignupStep2Data {
 export const MultiStepAuthModal: React.FC = () => {
   const { isLoginOpen, isSignupOpen, closeModals, openLogin, openSignup } = useAuthModalStore();
   const { setUser, setWallet, setLoading } = useWalletStore();
+  const { setWallet: setDashboardWallet } = useDashboardWalletStore();
   
   // Login form data
   const [loginData, setLoginData] = useState({
@@ -89,6 +91,12 @@ export const MultiStepAuthModal: React.FC = () => {
       console.log('✅ Login successful:', user.email);
       setUser(user);
       setWallet(wallet as UserWallet | null);
+      if (wallet) {
+        setDashboardWallet({
+          address: wallet.wallet_address,
+          privateKey: wallet.encrypted_private_key
+        });
+      }
       handleClose();
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to sign in. Please check your credentials and try again.';
@@ -168,6 +176,12 @@ export const MultiStepAuthModal: React.FC = () => {
       );
       setUser(user);
       setWallet(wallet as UserWallet | null);
+      if (wallet) {
+        setDashboardWallet({
+          address: wallet.wallet_address,
+          privateKey: wallet.encrypted_private_key
+        });
+      }
       handleClose();
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to create account';
