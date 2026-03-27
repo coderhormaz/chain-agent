@@ -24,10 +24,28 @@ export const useAuth = () => {
 
     // Get initial session
     const initializeAuth = async () => {
-      // If already initialized AND user is present, skip re-init.
-      // After logout isInitialized is false so we always re-init.
+      // If already initialized AND user is present, skip re-init
+      // but still populate the dashboard wallet store if needed.
       const authState = useAuthStore.getState();
       if (authState.isInitialized && authState.user) {
+        // Ensure dashboard wallet store is populated
+        const dashboardWallet = useNewWalletStore.getState().wallet;
+        if (!dashboardWallet) {
+          try {
+            const userWallet = await AuthService.getUserWallet(authState.user.id);
+            if (userWallet) {
+              setWallet(userWallet);
+              setNewWallet({
+                address: userWallet.wallet_address,
+                privateKey: userWallet.encrypted_private_key
+              });
+              const balance = await WalletService.getBalance(userWallet.wallet_address);
+              setBalance(balance);
+            }
+          } catch (e) {
+            console.error('Error fetching wallet on rehydration:', e);
+          }
+        }
         setLoading(false);
         setAuthLoading(false);
         clearTimeout(timeout);
