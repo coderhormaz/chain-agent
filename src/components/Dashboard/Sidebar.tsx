@@ -28,6 +28,8 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => {
       console.warn('signOut error (ignored):', e);
     }
     logout();
+    localStorage.removeItem('opbnb-ai-remember-me');
+    localStorage.removeItem('wallet-storage');
     window.location.href = '/';
   };
 

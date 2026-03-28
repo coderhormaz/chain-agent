@@ -22,9 +22,14 @@ export function Header() {
 	const navigate = useNavigate();
 
 	const handleLogout = async () => {
-		await supabase.auth.signOut();
+		try {
+			await supabase.auth.signOut();
+		} catch (e) {
+			console.warn('signOut error (ignored):', e);
+		}
 		logout();
-		navigate('/');
+		localStorage.removeItem('opbnb-ai-remember-me');
+		window.location.href = '/';
 	};
 
 	const handleDashboardClick = () => {

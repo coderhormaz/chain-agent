@@ -30,46 +30,80 @@ export default function ResetPasswordPage({ onBack }: ResetPasswordPageProps) {
   useEffect(() => {
     let isMounted = true;
 
-    // Get the token_hash from query parameters (PKCE flow)
-    const urlParams = new URLSearchParams(window.location.search);
-    const tokenHash = urlParams.get('token_hash');
-    const type = urlParams.get('type');
-    
-    if (!tokenHash || type !== 'recovery') {
-      if (isMounted) {
-        setError('Invalid or missing reset link. Please request a new password reset link.');
-        setIsTokenValid(false);
-        setIsValidating(false);
-      }
-      return;
-    }
-
-    // Exchange the token_hash for a session using verifyOtp
-    const verifyCode = async () => {
+    const verifyResetSession = async () => {
       try {
-        // Exchange the token_hash for a session
-        const { data, error } = await supabase.auth.verifyOtp({
-          token_hash: tokenHash,
-          type: 'recovery',
-        });
-        
-        if (!isMounted) return;
+        const urlParams = new URLSearchParams(window.location.search);
+        const tokenHash = urlParams.get('token_hash');
+        const type = urlParams.get('type');
+        const code = urlParams.get('code');
+        const errorParam = urlParams.get('error');
+        const errorDescription = urlParams.get('error_description');
 
-        if (error) {
-          setError('Invalid or expired reset link. Please request a new password reset.');
-          setIsTokenValid(false);
+        // Handle error returned in the redirect
+        if (errorParam) {
+          if (isMounted) {
+            setError(errorDescription || 'Password reset link is invalid or has expired.');
+            setIsTokenValid(false);
+            setIsValidating(false);
+          }
+          return;
+        }
+
+        // Legacy / implicit flow — token_hash in URL
+        if (tokenHash && type === 'recovery') {
+          const { data, error } = await supabase.auth.verifyOtp({
+            token_hash: tokenHash,
+            type: 'recovery',
+          });
+
+          if (!isMounted) return;
+
+          if (error || !data.session) {
+            setError('Invalid or expired reset link. Please request a new password reset.');
+            setIsTokenValid(false);
+            setIsValidating(false);
+            return;
+          }
+
           setIsValidating(false);
           return;
         }
 
-        if (!data.session) {
-          setError('Failed to establish session. Please request a new reset link.');
-          setIsTokenValid(false);
-          setIsValidating(false);
+        // PKCE flow — code in URL. The Supabase client (detectSessionInUrl)
+        // auto-exchanges the code for a session. Poll until the session exists.
+        if (code) {
+          for (let i = 0; i < 20; i++) {
+            if (!isMounted) return;
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session) {
+              setIsValidating(false);
+              return;
+            }
+            await new Promise(r => setTimeout(r, 300));
+          }
+
+          if (isMounted) {
+            setError('Failed to verify reset link. Please request a new password reset.');
+            setIsTokenValid(false);
+            setIsValidating(false);
+          }
           return;
         }
 
-        setIsValidating(false);
+        // No URL params — check if session was already exchanged before
+        // this component mounted (e.g. Supabase processed the URL earlier)
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          if (isMounted) setIsValidating(false);
+          return;
+        }
+
+        // Nothing found
+        if (isMounted) {
+          setError('Invalid or missing reset link. Please request a new password reset link.');
+          setIsTokenValid(false);
+          setIsValidating(false);
+        }
       } catch (err) {
         if (isMounted) {
           setError('Failed to verify reset link. Please try again.');
@@ -79,7 +113,7 @@ export default function ResetPasswordPage({ onBack }: ResetPasswordPageProps) {
       }
     };
 
-    verifyCode();
+    verifyResetSession();
 
     return () => {
       isMounted = false;
