@@ -223,9 +223,11 @@ export class AuthService {
     try {
       console.log('🔐 Sending password reset email...');
       
-      const baseUrl = (import.meta.env.VITE_APP_URL as string) || window.location.origin;
+      // Always use the current origin so the PKCE code_verifier (stored in
+      // localStorage) is available when the user clicks the email link.
+      const redirectTo = `${window.location.origin}/reset-password`;
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${baseUrl}/reset-password`,
+        redirectTo,
       });
 
       if (error) {

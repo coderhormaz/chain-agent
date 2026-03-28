@@ -69,24 +69,34 @@ export default function ResetPasswordPage({ onBack }: ResetPasswordPageProps) {
           return;
         }
 
-        // PKCE flow — code in URL. The Supabase client (detectSessionInUrl)
-        // auto-exchanges the code for a session. Poll until the session exists.
+        // PKCE flow — code in URL
         if (code) {
-          for (let i = 0; i < 20; i++) {
-            if (!isMounted) return;
-            const { data: { session } } = await supabase.auth.getSession();
-            if (session) {
-              setIsValidating(false);
-              return;
-            }
-            await new Promise(r => setTimeout(r, 300));
+          // First check if detectSessionInUrl already exchanged the code
+          const { data: { session: existing } } = await supabase.auth.getSession();
+          if (!isMounted) return;
+          if (existing) {
+            setIsValidating(false);
+            return;
           }
 
-          if (isMounted) {
-            setError('Failed to verify reset link. Please request a new password reset.');
-            setIsTokenValid(false);
+          // Try explicit exchange (needs the code_verifier stored when the
+          // reset was requested — only available on the same origin).
+          const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+          if (!isMounted) return;
+
+          if (!exchangeError && data.session) {
             setIsValidating(false);
+            return;
           }
+
+          // Exchange failed — most likely the code_verifier is missing
+          // (user opened the link on a different browser/domain).
+          console.error('Code exchange failed:', exchangeError);
+          setError(
+            'Reset link could not be verified. Please make sure you open the link in the same browser where you requested the reset.'
+          );
+          setIsTokenValid(false);
+          setIsValidating(false);
           return;
         }
 
