@@ -30,103 +30,80 @@ export default function ResetPasswordPage({ onBack }: ResetPasswordPageProps) {
   useEffect(() => {
     let isMounted = true;
 
-    const verifyResetSession = async () => {
-      try {
-        const urlParams = new URLSearchParams(window.location.search);
-        const tokenHash = urlParams.get('token_hash');
-        const type = urlParams.get('type');
-        const code = urlParams.get('code');
-        const errorParam = urlParams.get('error');
-        const errorDescription = urlParams.get('error_description');
+    const urlParams = new URLSearchParams(window.location.search);
+    const errorParam = urlParams.get('error');
+    const errorDescription = urlParams.get('error_description');
 
-        // Handle error returned in the redirect
-        if (errorParam) {
-          if (isMounted) {
-            setError(errorDescription || 'Password reset link is invalid or has expired.');
-            setIsTokenValid(false);
-            setIsValidating(false);
-          }
-          return;
-        }
+    // Handle error returned in the redirect URL
+    if (errorParam) {
+      setError(errorDescription || 'Password reset link is invalid or has expired.');
+      setIsTokenValid(false);
+      setIsValidating(false);
+      return;
+    }
 
-        // Legacy / implicit flow — token_hash in URL
-        if (tokenHash && type === 'recovery') {
-          const { data, error } = await supabase.auth.verifyOtp({
-            token_hash: tokenHash,
-            type: 'recovery',
-          });
+    // No code or token_hash in URL at all — invalid link
+    const hasCode = urlParams.has('code');
+    const hasTokenHash = urlParams.has('token_hash');
+    if (!hasCode && !hasTokenHash) {
+      setError('Invalid or missing reset link. Please request a new password reset link.');
+      setIsTokenValid(false);
+      setIsValidating(false);
+      return;
+    }
 
-          if (!isMounted) return;
-
-          if (error || !data.session) {
-            setError('Invalid or expired reset link. Please request a new password reset.');
-            setIsTokenValid(false);
-            setIsValidating(false);
-            return;
-          }
-
-          setIsValidating(false);
-          return;
-        }
-
-        // PKCE flow — code in URL
-        if (code) {
-          // First check if detectSessionInUrl already exchanged the code
-          const { data: { session: existing } } = await supabase.auth.getSession();
-          if (!isMounted) return;
-          if (existing) {
-            setIsValidating(false);
-            return;
-          }
-
-          // Try explicit exchange (needs the code_verifier stored when the
-          // reset was requested — only available on the same origin).
-          const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
-          if (!isMounted) return;
-
-          if (!exchangeError && data.session) {
-            setIsValidating(false);
-            return;
-          }
-
-          // Exchange failed — most likely the code_verifier is missing
-          // (user opened the link on a different browser/domain).
-          console.error('Code exchange failed:', exchangeError);
-          setError(
-            'Reset link could not be verified. Please make sure you open the link in the same browser where you requested the reset.'
-          );
+    // For token_hash (implicit flow), exchange immediately
+    if (hasTokenHash && urlParams.get('type') === 'recovery') {
+      supabase.auth.verifyOtp({
+        token_hash: urlParams.get('token_hash')!,
+        type: 'recovery',
+      }).then(({ data, error }) => {
+        if (!isMounted) return;
+        if (error || !data.session) {
+          setError('Invalid or expired reset link. Please request a new password reset.');
           setIsTokenValid(false);
-          setIsValidating(false);
-          return;
         }
+        setIsValidating(false);
+      });
+      return () => { isMounted = false; };
+    }
 
-        // No URL params — check if session was already exchanged before
-        // this component mounted (e.g. Supabase processed the URL earlier)
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session) {
-          if (isMounted) setIsValidating(false);
-          return;
-        }
-
-        // Nothing found
-        if (isMounted) {
-          setError('Invalid or missing reset link. Please request a new password reset link.');
-          setIsTokenValid(false);
-          setIsValidating(false);
-        }
-      } catch (err) {
-        if (isMounted) {
-          setError('Failed to verify reset link. Please try again.');
-          setIsTokenValid(false);
-          setIsValidating(false);
-        }
-      }
+    // PKCE flow — ?code= in URL.
+    // detectSessionInUrl (on the Supabase client) will automatically exchange
+    // the code for a session. We just listen for the session to appear via
+    // onAuthStateChange instead of racing with a manual exchange call.
+    const resolved = () => {
+      if (isMounted) setIsValidating(false);
     };
 
-    verifyResetSession();
+    // Listen for auth state change (fires when detectSessionInUrl finishes)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        if (session) resolved();
+      }
+    );
+
+    // Also check if the session was already exchanged before this listener
+    // was registered (race with _initialize)
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) resolved();
+    });
+
+    // Timeout — if nothing resolves within 12s, show error
+    const timer = setTimeout(() => {
+      if (isMounted && isValidating) {
+        setError(
+          'Reset link could not be verified. Please make sure you open the link in the same browser where you requested the reset.'
+        );
+        setIsTokenValid(false);
+        setIsValidating(false);
+      }
+    }, 12000);
 
     return () => {
       isMounted = false;
+      subscription.unsubscribe();
+      clearTimeout(timer);
     };
   }, []);
 

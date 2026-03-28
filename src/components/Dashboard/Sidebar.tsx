@@ -21,15 +21,14 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => {
     { id: 'wallet', label: 'Wallet', icon: <Wallet size={18} strokeWidth={2} /> }
   ];
 
-  const handleSignOut = async () => {
-    try {
-      await supabase.auth.signOut();
-    } catch (e) {
-      console.warn('signOut error (ignored):', e);
-    }
+  const handleSignOut = () => {
+    // Clear local state first so the redirect is instant.
+    // Fire-and-forget the Supabase signOut (it can hang on lock contention).
     logout();
     localStorage.removeItem('opbnb-ai-remember-me');
     localStorage.removeItem('wallet-storage');
+    localStorage.removeItem('opbnb-ai-auth');
+    supabase.auth.signOut().catch(() => {});
     window.location.href = '/';
   };
 

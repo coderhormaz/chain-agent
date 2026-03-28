@@ -21,14 +21,14 @@ export function Header() {
 	const { theme } = useTheme();
 	const navigate = useNavigate();
 
-	const handleLogout = async () => {
-		try {
-			await supabase.auth.signOut();
-		} catch (e) {
-			console.warn('signOut error (ignored):', e);
-		}
+	const handleLogout = () => {
+		// Clear local state first so the redirect is instant.
+		// Fire-and-forget the Supabase signOut (it can hang on lock contention).
 		logout();
 		localStorage.removeItem('opbnb-ai-remember-me');
+		localStorage.removeItem('wallet-storage');
+		localStorage.removeItem('opbnb-ai-auth');
+		supabase.auth.signOut().catch(() => {});
 		window.location.href = '/';
 	};
 
