@@ -24,6 +24,18 @@ export const useAuth = () => {
 
     // Get initial session
     const initializeAuth = async () => {
+      // On /reset-password, skip heavy session init — the ResetPasswordPage
+      // component handles the PKCE code exchange itself.  Running
+      // refreshSession() here would race / deadlock with detectSessionInUrl
+      // which is already exchanging the ?code= parameter.
+      if (window.location.pathname === '/reset-password') {
+        setLoading(false);
+        setAuthLoading(false);
+        setInitialized(true);
+        clearTimeout(timeout);
+        return;
+      }
+
       // If already initialized AND user is present, skip re-init
       // but still populate the dashboard wallet store if needed.
       const authState = useAuthStore.getState();
