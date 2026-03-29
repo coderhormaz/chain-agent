@@ -174,8 +174,12 @@ export class BlockchainService {
         if (!nftDetails.imageUrl.startsWith('http')) {
           throw new Error('Invalid image URL. Image must be uploaded to IPFS first.');
         }
-        metadata.image = nftDetails.imageUrl;
-        metadata.external_url = nftDetails.imageUrl;
+        // Convert gateway URL to ipfs:// protocol so block explorers can resolve it
+        const ipfsImage = nftDetails.imageUrl.includes('/ipfs/')
+          ? 'ipfs://' + nftDetails.imageUrl.split('/ipfs/')[1]
+          : nftDetails.imageUrl;
+        metadata.image = ipfsImage;
+        metadata.external_url = ipfsImage;
       }
 
       console.log('🎨 Minting to shared NFT collection...');
@@ -190,8 +194,9 @@ export class BlockchainService {
         const { LighthouseService } = await import('./lighthouseService');
         const metadataUpload = await LighthouseService.uploadJSON(metadata, `${nftDetails.name.replace(/\\s+/g, '_')}_metadata.json`);
         
-        if (metadataUpload.success && metadataUpload.url) {
-          tokenURI = metadataUpload.url;
+        if (metadataUpload.success && metadataUpload.ipfsHash) {
+          // Use ipfs:// protocol URI so block explorers can resolve metadata
+          tokenURI = `ipfs://${metadataUpload.ipfsHash}`;
           console.log('✅ Metadata uploaded to IPFS:', tokenURI);
         } else {
           console.log('⚠️ Metadata IPFS upload failed:', metadataUpload.error);
@@ -627,8 +632,22 @@ export class BlockchainService {
             } catch (e) {
               console.error(`Failed to parse base64 metadata for token ${tokenIdStr}:`, e);
             }
+          } else if (tokenURI.startsWith('ipfs://')) {
+            // Convert ipfs:// to HTTP gateway URL for fetching
+            const httpUrl = 'https://gateway.lighthouse.storage/ipfs/' + tokenURI.slice(7);
+            try {
+              const response = await fetch(httpUrl, { signal: AbortSignal.timeout(10000) });
+              if (response.ok) {
+                const text = await response.text();
+                metadata = JSON.parse(text);
+              } else {
+                console.error(`Failed to fetch metadata for token ${tokenIdStr}: HTTP ${response.status}`);
+              }
+            } catch (e) {
+              console.error(`Failed to fetch/parse metadata for token ${tokenIdStr}:`, e);
+            }
           } else if (tokenURI.startsWith('http')) {
-            // IPFS or HTTP URL — fetch the metadata JSON
+            // Legacy HTTP URL — fetch directly
             try {
               const response = await fetch(tokenURI, { signal: AbortSignal.timeout(10000) });
               if (response.ok) {

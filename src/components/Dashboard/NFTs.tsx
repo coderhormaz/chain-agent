@@ -61,7 +61,11 @@ const NFTs: React.FC = () => {
             id: nft.tokenId,
             name: nft.metadata?.name || `NFT #${nft.tokenId}`,
             description: nft.metadata?.description || 'No description',
-            image: nft.metadata?.image || 'https://via.placeholder.com/300x300?text=NFT',
+            image: nft.metadata?.image
+              ? (nft.metadata.image.startsWith('ipfs://')
+                ? 'https://gateway.lighthouse.storage/ipfs/' + nft.metadata.image.slice(7)
+                : nft.metadata.image)
+              : 'https://via.placeholder.com/300x300?text=NFT',
             contractAddress: import.meta.env.VITE_NFT_FACTORY_CONTRACT || '0x...',
             tokenId: nft.tokenId,
             metadata: {
