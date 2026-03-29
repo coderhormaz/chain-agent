@@ -43,7 +43,7 @@ export const useConversationStore = create<ConversationState>()(
         {
           id: 'welcome',
           type: 'ai',
-          content: 'Hello! I\'m your opBNB Chain Agent. I can help you:\n\n◎ Create BEP-20 tokens\n■ Mint NFTs with Lighthouse IPFS storage\n⚡ Send BNB transactions\n◆ Check balances and transaction history\n\nJust tell me what you\'d like to do in natural language!',
+          content: 'Hello! I\'m your opBNB Chain Agent. I can help you:\n\n◎ Create BEP-20 tokens\n■ Mint NFTs with Lighthouse IPFS storage\n⚡ Send BNB transactions\n🎓 Issue & verify blockchain certificates\n◆ Check balances and transaction history\n\nJust tell me what you\'d like to do in natural language!',
           timestamp: new Date()
         }
       ],
@@ -83,7 +83,7 @@ export const useConversationStore = create<ConversationState>()(
             {
               id: 'welcome',
               type: 'ai',
-              content: 'Hello! I\'m your opBNB Chain Agent. I can help you:\n\n◎ Create BEP-20 tokens\n■ Mint NFTs with Lighthouse IPFS storage\n⚡ Send BNB transactions\n◆ Check balances and transaction history\n\nJust tell me what you\'d like to do in natural language!',
+              content: 'Hello! I\'m your opBNB Chain Agent. I can help you:\n\n◎ Create BEP-20 tokens\n■ Mint NFTs with Lighthouse IPFS storage\n⚡ Send BNB transactions\n🎓 Issue & verify blockchain certificates\n◆ Check balances and transaction history\n\nJust tell me what you\'d like to do in natural language!',
               timestamp: new Date()
             }
           ],
@@ -133,6 +133,30 @@ export const useConversationStore = create<ConversationState>()(
             case 'send_transaction':
               result = await BlockchainService.sendTransaction(action.details, privateKey);
               break;
+
+            case 'issue_certificate': {
+              const { CertificateService } = await import('../services/certificateService');
+              const certMeta = {
+                recipientName: action.details.recipientName || '',
+                recipientWallet: action.details.recipientWallet,
+                institution: action.details.institution || '',
+                course: action.details.course || '',
+                grade: action.details.grade,
+                certificateType: action.details.certificateType || 'completion',
+                dateIssued: new Date().toISOString(),
+                description: action.details.description,
+                issuerWallet: walletState.wallet.address
+              };
+              const certResult = await CertificateService.issueCertificate(certMeta, privateKey);
+              result = {
+                success: certResult.success,
+                hash: certResult.hash,
+                explorerUrl: certResult.explorerUrl,
+                tokenId: certResult.certId,
+                error: certResult.error
+              };
+              break;
+            }
               
             default:
               throw new Error(`Unsupported action: ${action.action}`);
@@ -142,19 +166,34 @@ export const useConversationStore = create<ConversationState>()(
           let successMessage: ConversationMessage;
           
           if (result.success) {
-            let content = `✓ **Transaction Successful!**\n\n`;
-            content += `▸ **Transaction Hash**: \`${result.hash}\`\n`;
-            
-            if (result.contractAddress) {
-              content += `◆ **Contract Address**: \`${result.contractAddress}\`\n`;
-            }
-            
-            if (result.tokenId) {
-              content += `◈ **Token ID**: \`${result.tokenId}\`\n`;
-            }
-            
-            if (result.explorerUrl) {
-              content += `\n[View on Explorer](${result.explorerUrl})`;
+            let content = '';
+
+            // Certificate-specific success message
+            if (action.action === 'issue_certificate') {
+              content += `🎓 **Certificate Issued Successfully!**\n\n`;
+              content += `▸ **Certificate ID**: \`${result.tokenId}\`\n`;
+              content += `▸ **Transaction Hash**: \`${result.hash}\`\n`;
+              const appUrl = import.meta.env.VITE_APP_URL || window.location.origin;
+              content += `\n🔗 **Verification Link**: [${appUrl}/verify/${result.tokenId}](${appUrl}/verify/${result.tokenId})\n`;
+              content += `\nAnyone can verify this certificate using the link above — no login required.`;
+              if (result.explorerUrl) {
+                content += `\n\n[View on Explorer](${result.explorerUrl})`;
+              }
+            } else {
+              content += `✓ **Transaction Successful!**\n\n`;
+              content += `▸ **Transaction Hash**: \`${result.hash}\`\n`;
+              
+              if (result.contractAddress) {
+                content += `◆ **Contract Address**: \`${result.contractAddress}\`\n`;
+              }
+              
+              if (result.tokenId) {
+                content += `◈ **Token ID**: \`${result.tokenId}\`\n`;
+              }
+              
+              if (result.explorerUrl) {
+                content += `\n[View on Explorer](${result.explorerUrl})`;
+              }
             }
 
             successMessage = {

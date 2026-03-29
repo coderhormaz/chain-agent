@@ -4,6 +4,7 @@ import AIChat from './AIChat';
 import Wallet from './Wallet';
 import Tokens from './Tokens';
 import NFTs from './NFTs';
+import Certificates from './Certificates';
 import '../../styles/dashboard.css';
 
 const Dashboard: React.FC = () => {
@@ -19,6 +20,8 @@ const Dashboard: React.FC = () => {
         return <Tokens />;
       case 'nfts':
         return <NFTs />;
+      case 'certificates':
+        return <Certificates />;
       default:
         return <AIChat />;
     }

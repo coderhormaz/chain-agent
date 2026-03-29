@@ -32,6 +32,19 @@ const ERC20_ABI = [
   "function decimals() external view returns (uint8)"
 ];
 
+// CertificateRegistry ABI — matches remix-contracts/CertificateRegistry.sol
+const CERTIFICATE_REGISTRY_ABI = [
+  "function issueCertificate(address recipient, string calldata ipfsHash) external returns (uint256)",
+  "function revokeCertificate(uint256 certId) external",
+  "function verifyCertificate(uint256 certId) external view returns (address issuer, address recipient, string ipfsHash, uint96 issuedAt, bool revoked, bool isValid)",
+  "function getCertificatesByIssuer(address issuer) external view returns (uint256[])",
+  "function getCertificatesByRecipient(address recipient) external view returns (uint256[])",
+  "function totalCertificates() external view returns (uint256)",
+  "function isApprovedIssuer(address) external view returns (bool)",
+  "function registerIssuer(address issuer) external",
+  "function removeIssuer(address issuer) external"
+];
+
 export interface TransactionResult {
   success: boolean;
   hash?: string;
@@ -47,6 +60,7 @@ export class BlockchainService {
       tokenFactory: import.meta.env.VITE_TOKEN_FACTORY_CONTRACT,
       nftFactory: import.meta.env.VITE_NFT_FACTORY_CONTRACT,
       paymentContract: import.meta.env.VITE_PAYMENT_CONTRACT,
+      certificateRegistry: import.meta.env.VITE_CERTIFICATE_CONTRACT,
     };
   }
 
@@ -682,6 +696,193 @@ export class BlockchainService {
     } catch (error) {
       console.error('Failed to fetch user NFTs:', error);
       throw error;
+    }
+  }
+
+  // ── Certificate Registry Methods ────────────────────────────
+
+  // Issue a certificate on-chain
+  static async issueCertificate(
+    recipientAddress: string,
+    ipfsHash: string,
+    privateKey: string
+  ): Promise<TransactionResult & { certId?: string }> {
+    try {
+      console.log('🎓 Issuing certificate to:', recipientAddress);
+
+      const provider = this.getProvider();
+      const wallet = new ethers.Wallet(privateKey, provider);
+      const addresses = this.getContractAddresses();
+
+      if (!addresses.certificateRegistry) {
+        throw new Error('Certificate registry contract address not configured. Deploy CertificateRegistry.sol and set VITE_CERTIFICATE_CONTRACT in .env');
+      }
+
+      const contract = new ethers.Contract(addresses.certificateRegistry, CERTIFICATE_REGISTRY_ABI, wallet);
+
+      // Estimate gas
+      let gasEstimate: bigint;
+      try {
+        gasEstimate = await contract.issueCertificate.estimateGas(recipientAddress, ipfsHash);
+      } catch {
+        gasEstimate = 200000n;
+      }
+
+      const tx = await contract.issueCertificate(recipientAddress, ipfsHash, {
+        gasLimit: gasEstimate * 120n / 100n
+      });
+
+      console.log('📝 Certificate issuance tx sent:', tx.hash);
+      const receipt = await tx.wait();
+
+      // Extract certId from CertificateIssued event
+      let certId = '0';
+      const issuedEvent = receipt.logs.find((log: any) =>
+        log.topics[0] === ethers.id('CertificateIssued(uint256,address,address,string)')
+      );
+      if (issuedEvent && issuedEvent.topics[1]) {
+        certId = BigInt(issuedEvent.topics[1]).toString();
+        console.log('🎓 Certificate ID:', certId);
+      }
+
+      return {
+        success: true,
+        hash: tx.hash,
+        explorerUrl: this.getExplorerUrl(tx.hash),
+        certId
+      };
+    } catch (error) {
+      console.error('Certificate issuance failed:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Certificate issuance failed'
+      };
+    }
+  }
+
+  // Verify a certificate (read-only, no gas)
+  static async verifyCertificate(certId: number): Promise<{
+    exists: boolean;
+    issuer: string;
+    recipient: string;
+    ipfsHash: string;
+    issuedAt: number;
+    revoked: boolean;
+    isValid: boolean;
+  }> {
+    try {
+      const provider = this.getProvider();
+      const addresses = this.getContractAddresses();
+
+      if (!addresses.certificateRegistry) {
+        throw new Error('Certificate registry contract not configured');
+      }
+
+      const contract = new ethers.Contract(addresses.certificateRegistry, CERTIFICATE_REGISTRY_ABI, provider);
+      const [issuer, recipient, ipfsHash, issuedAt, revoked, isValid] = await contract.verifyCertificate(certId);
+
+      const exists = issuedAt !== 0n && issuedAt !== 0;
+
+      return {
+        exists,
+        issuer,
+        recipient,
+        ipfsHash,
+        issuedAt: Number(issuedAt),
+        revoked,
+        isValid
+      };
+    } catch (error) {
+      console.error('Certificate verification failed:', error);
+      return { exists: false, issuer: '', recipient: '', ipfsHash: '', issuedAt: 0, revoked: false, isValid: false };
+    }
+  }
+
+  // Revoke a certificate
+  static async revokeCertificate(certId: number, privateKey: string): Promise<TransactionResult> {
+    try {
+      const provider = this.getProvider();
+      const wallet = new ethers.Wallet(privateKey, provider);
+      const addresses = this.getContractAddresses();
+
+      if (!addresses.certificateRegistry) {
+        throw new Error('Certificate registry contract not configured');
+      }
+
+      const contract = new ethers.Contract(addresses.certificateRegistry, CERTIFICATE_REGISTRY_ABI, wallet);
+
+      let gasEstimate: bigint;
+      try {
+        gasEstimate = await contract.revokeCertificate.estimateGas(certId);
+      } catch {
+        gasEstimate = 100000n;
+      }
+
+      const tx = await contract.revokeCertificate(certId, {
+        gasLimit: gasEstimate * 120n / 100n
+      });
+
+      const receipt = await tx.wait();
+      console.log('🚫 Certificate revoked in block:', receipt.blockNumber);
+
+      return {
+        success: true,
+        hash: tx.hash,
+        explorerUrl: this.getExplorerUrl(tx.hash)
+      };
+    } catch (error) {
+      console.error('Certificate revocation failed:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Certificate revocation failed'
+      };
+    }
+  }
+
+  // Get certificates by issuer (read-only)
+  static async getCertificatesByIssuer(issuerAddress: string): Promise<number[]> {
+    try {
+      const provider = this.getProvider();
+      const addresses = this.getContractAddresses();
+      if (!addresses.certificateRegistry) return [];
+
+      const contract = new ethers.Contract(addresses.certificateRegistry, CERTIFICATE_REGISTRY_ABI, provider);
+      const ids: bigint[] = await contract.getCertificatesByIssuer(issuerAddress);
+      return ids.map(id => Number(id));
+    } catch (error) {
+      console.error('Failed to fetch issuer certificates:', error);
+      return [];
+    }
+  }
+
+  // Get certificates by recipient (read-only)
+  static async getCertificatesByRecipient(recipientAddress: string): Promise<number[]> {
+    try {
+      const provider = this.getProvider();
+      const addresses = this.getContractAddresses();
+      if (!addresses.certificateRegistry) return [];
+
+      const contract = new ethers.Contract(addresses.certificateRegistry, CERTIFICATE_REGISTRY_ABI, provider);
+      const ids: bigint[] = await contract.getCertificatesByRecipient(recipientAddress);
+      return ids.map(id => Number(id));
+    } catch (error) {
+      console.error('Failed to fetch recipient certificates:', error);
+      return [];
+    }
+  }
+
+  // Check if an address is an approved issuer
+  static async checkIsApprovedIssuer(address: string): Promise<boolean> {
+    try {
+      const provider = this.getProvider();
+      const addresses = this.getContractAddresses();
+      if (!addresses.certificateRegistry) return false;
+
+      const contract = new ethers.Contract(addresses.certificateRegistry, CERTIFICATE_REGISTRY_ABI, provider);
+      return await contract.isApprovedIssuer(address);
+    } catch (error) {
+      console.error('Failed to check issuer status:', error);
+      return false;
     }
   }
 }

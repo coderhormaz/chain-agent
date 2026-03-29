@@ -25,7 +25,7 @@ export const AVAILABLE_MODELS: AIModel[] = [
 
 // Types for structured blockchain actions
 export interface BlockchainAction {
-  action: 'create_token' | 'mint_nft' | 'upload_nft' | 'send_transaction' | 'check_balance' | 'get_transactions' | 'unknown';
+  action: 'create_token' | 'mint_nft' | 'upload_nft' | 'send_transaction' | 'check_balance' | 'get_transactions' | 'issue_certificate' | 'verify_certificate' | 'unknown';
   confidence: number;
   details: {
     [key: string]: any;
@@ -54,6 +54,20 @@ export interface TransactionDetails {
   token?: string; // 'BNB' or token address
   contactName?: string; // If resolved from a contact
   recipientDisplayName?: string; // For showing in UI
+}
+
+export interface CertificateIssuanceDetails {
+  recipientWallet?: string;
+  recipientName?: string;
+  institution?: string;
+  course?: string;
+  grade?: string;
+  certificateType?: 'completion' | 'achievement' | 'credential' | 'degree';
+  description?: string;
+}
+
+export interface CertificateVerifyDetails {
+  certId?: number;
 }
 
 class GeminiAIService {
@@ -173,7 +187,18 @@ class GeminiAIService {
   private buildPrompt(userInput: string, context: any[]): string {
     const systemPrompt = `You are an opBNB blockchain assistant. Extract actions from natural language and respond in JSON.
 
-ACTIONS: create_token | mint_nft | upload_nft | send_transaction | check_balance | get_transactions
+ACTIONS: create_token | mint_nft | upload_nft | send_transaction | check_balance | get_transactions | issue_certificate | verify_certificate
+
+CERTIFICATE FIELDS:
+- issue_certificate: recipientWallet (0x address), recipientName, institution, course, grade (optional), certificateType (completion/achievement/credential/degree), description (optional)
+- verify_certificate: certId (number)
+
+CERTIFICATE DEFAULTS:
+- certificateType: "completion" if not specified
+- grade: omit if not mentioned
+- institution: REQUIRED — ask if not provided
+- course: REQUIRED — ask if not provided
+- recipientWallet: REQUIRED — must be 0x address
 
 TOKEN DEFAULTS:
 - symbol: Auto-generate 3-4 letters from name ("Dragon Token" -> "DRAG")
@@ -185,6 +210,8 @@ REQUIRED FIELDS:
 - mint_nft: ALWAYS start with upload_nft first, then ask for name/description after upload
 - upload_nft: No fields needed, show upload button immediately, BUT extract NFT name/description ONLY if actual names provided (NOT commands like "mint nft")
 - send_transaction: recipient (contact name OR 0x address), amount, token (default: BNB)
+- issue_certificate: recipientWallet, recipientName, institution, course, certificateType
+- verify_certificate: certId
 
 JSON FORMAT:
 \`\`\`json
@@ -357,6 +384,41 @@ Respond with JSON:`;
         parsedJson.requiresConfirmation = true;
       }
 
+      // Validation for issue_certificate
+      if (parsedJson.action?.action === 'issue_certificate') {
+        const certDetails = parsedJson.action.details;
+        const missingFields: string[] = [];
+
+        if (!certDetails.recipientWallet || !/^0x[a-fA-F0-9]{40}$/.test(certDetails.recipientWallet)) {
+          missingFields.push('recipientWallet');
+        }
+        if (!certDetails.recipientName) missingFields.push('recipientName');
+        if (!certDetails.institution) missingFields.push('institution');
+        if (!certDetails.course) missingFields.push('course');
+
+        // Defaults
+        if (!certDetails.certificateType) certDetails.certificateType = 'completion';
+
+        parsedJson.action.missingFields = missingFields;
+        parsedJson.action.isComplete = missingFields.length === 0;
+        if (parsedJson.action.isComplete) {
+          parsedJson.requiresConfirmation = true;
+        }
+      }
+
+      // Validation for verify_certificate
+      if (parsedJson.action?.action === 'verify_certificate') {
+        const certDetails = parsedJson.action.details;
+        if (!certDetails.certId && certDetails.certId !== 0) {
+          parsedJson.action.missingFields = ['certId'];
+          parsedJson.action.isComplete = false;
+        } else {
+          parsedJson.action.missingFields = [];
+          parsedJson.action.isComplete = true;
+          // verify is read-only, no confirmation needed — will be handled directly
+        }
+      }
+
       return {
         response: parsedJson.response || aiResponse,
         action: parsedJson.action || null,
@@ -507,6 +569,30 @@ $ **Estimated Gas Cost**: ~${transferGasEstimate} BNB (${transferGasCostUSD})
 This transaction cannot be reversed once confirmed.
 
 **Should I proceed with this transfer?** (Yes/No)`;
+      }
+
+      case 'issue_certificate': {
+        const certDetails = action.details as CertificateIssuanceDetails;
+        const certGasEstimate = await BlockchainService.estimateGas('nft'); // similar gas cost
+        const certGasCostUSD = await BlockchainService.getGasCostUSD('nft');
+
+        return `🎓 **Certificate Issuance Confirmation**
+
+You're about to issue a blockchain-verified certificate:
+• **Recipient**: ${certDetails.recipientName || 'Unknown'}
+• **Wallet**: \`${certDetails.recipientWallet}\`
+• **Institution**: ${certDetails.institution}
+• **Course**: ${certDetails.course}
+• **Type**: ${certDetails.certificateType || 'Completion'}
+${certDetails.grade ? `• **Grade**: ${certDetails.grade}` : ''}
+${certDetails.description ? `• **Description**: ${certDetails.description}` : ''}
+
+$ **Estimated Gas Cost**: ~${certGasEstimate} BNB (${certGasCostUSD})
+▸ **Network**: opBNB Mainnet
+
+The certificate metadata will be stored on IPFS and the proof recorded on-chain. It can be verified by anyone at any time.
+
+**Should I proceed with issuing this certificate?** (Yes/No)`;
       }
       default:
         return `**Confirmation Required**

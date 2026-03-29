@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Zap, Box, Image, Wallet, Moon, Sun, LogOut, CircleDot, Bot } from 'lucide-react';
+import { Zap, Box, Image, Wallet, Moon, Sun, LogOut, CircleDot, Bot, GraduationCap } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { useTheme } from '../../contexts/ThemeContext';
 import { supabase } from '../../lib/supabase';
@@ -18,6 +18,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => {
     { id: 'chat', label: 'AI Chat', icon: <Zap size={18} strokeWidth={2} /> },
     { id: 'tokens', label: 'Tokens', icon: <Box size={18} strokeWidth={2} /> },
     { id: 'nfts', label: 'NFTs', icon: <Image size={18} strokeWidth={2} /> },
+    { id: 'certificates', label: 'Certificates', icon: <GraduationCap size={18} strokeWidth={2} /> },
     { id: 'wallet', label: 'Wallet', icon: <Wallet size={18} strokeWidth={2} /> }
   ];
 

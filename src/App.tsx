@@ -6,6 +6,7 @@ import { ProtectedRoute } from './components/ProtectedRoute';
 import LandingPage from './pages/LandingPage';
 import DashboardPage from './pages/DashboardPage';
 import ResetPasswordPageWrapper from './pages/ResetPasswordPageWrapper';
+import VerifyPage from './pages/VerifyPage';
 import './index.css';
 import './styles/globals.css';
 import './styles/components.css';
@@ -44,6 +45,8 @@ function App() {
             } 
           />
           <Route path="/reset-password" element={<ResetPasswordPageWrapper />} />
+          <Route path="/verify" element={<VerifyPage />} />
+          <Route path="/verify/:certId" element={<VerifyPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </div>
