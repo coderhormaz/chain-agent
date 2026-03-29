@@ -29,76 +29,69 @@ export default function ResetPasswordPage({ onBack }: ResetPasswordPageProps) {
 
   useEffect(() => {
     let isMounted = true;
+    let resolved = false;
 
-    const urlParams = new URLSearchParams(window.location.search);
-    const errorParam = urlParams.get('error');
-    const errorDescription = urlParams.get('error_description');
-
-    // Handle error returned in the redirect URL
-    if (errorParam) {
-      setError(errorDescription || 'Password reset link is invalid or has expired.');
-      setIsTokenValid(false);
+    const finish = (success: boolean, errorMsg?: string) => {
+      if (!isMounted || resolved) return;
+      resolved = true;
+      if (!success) {
+        setError(errorMsg || 'Invalid or expired reset link. Please request a new password reset.');
+        setIsTokenValid(false);
+      }
       setIsValidating(false);
+    };
+
+    // Check for errors in both query params and hash fragment
+    const urlParams = new URLSearchParams(window.location.search);
+    const hashParams = new URLSearchParams(window.location.hash.replace('#', ''));
+
+    const errorParam = urlParams.get('error') || hashParams.get('error');
+    const errorDescription = urlParams.get('error_description') || hashParams.get('error_description');
+
+    if (errorParam) {
+      finish(false, errorDescription || 'Password reset link is invalid or has expired.');
       return;
     }
 
-    // No code or token_hash in URL at all — invalid link
+    // Check for auth params in query (?code=, ?token_hash=) or hash (#access_token=)
     const hasCode = urlParams.has('code');
     const hasTokenHash = urlParams.has('token_hash');
-    if (!hasCode && !hasTokenHash) {
-      setError('Invalid or missing reset link. Please request a new password reset link.');
-      setIsTokenValid(false);
-      setIsValidating(false);
+    const hasAccessToken = hashParams.has('access_token');
+
+    if (!hasCode && !hasTokenHash && !hasAccessToken) {
+      finish(false, 'Invalid or missing reset link. Please request a new password reset link.');
       return;
     }
 
-    // For token_hash (implicit flow), exchange immediately
+    // token_hash flow: verify directly
     if (hasTokenHash && urlParams.get('type') === 'recovery') {
       supabase.auth.verifyOtp({
         token_hash: urlParams.get('token_hash')!,
         type: 'recovery',
-      }).then(({ data, error }) => {
-        if (!isMounted) return;
-        if (error || !data.session) {
-          setError('Invalid or expired reset link. Please request a new password reset.');
-          setIsTokenValid(false);
-        }
-        setIsValidating(false);
+      }).then(({ data, error: err }) => {
+        finish(!err && !!data.session ? true : false);
       });
       return () => { isMounted = false; };
     }
 
-    // PKCE flow — ?code= in URL.
-    // detectSessionInUrl (on the Supabase client) will automatically exchange
-    // the code for a session. We just listen for the session to appear via
-    // onAuthStateChange instead of racing with a manual exchange call.
-    const resolved = () => {
-      if (isMounted) setIsValidating(false);
-    };
-
-    // Listen for auth state change (fires when detectSessionInUrl finishes)
+    // Implicit flow (#access_token=...) or PKCE (?code=...):
+    // detectSessionInUrl on the Supabase client handles both automatically.
+    // Listen for the session to appear.
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, session) => {
-        if (session) resolved();
+        if (session) finish(true);
       }
     );
 
-    // Also check if the session was already exchanged before this listener
-    // was registered (race with _initialize)
+    // Session may already be established before our listener registered
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) resolved();
+      if (session) finish(true);
     });
 
-    // Timeout — if nothing resolves within 12s, show error
+    // Timeout
     const timer = setTimeout(() => {
-      if (isMounted && isValidating) {
-        setError(
-          'Reset link could not be verified. Please make sure you open the link in the same browser where you requested the reset.'
-        );
-        setIsTokenValid(false);
-        setIsValidating(false);
-      }
-    }, 12000);
+      finish(false, 'Reset link could not be verified. Please request a new password reset link and try again.');
+    }, 10000);
 
     return () => {
       isMounted = false;

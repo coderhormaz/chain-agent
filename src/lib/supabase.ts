@@ -51,7 +51,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     detectSessionInUrl: true,
     storageKey: STORAGE_KEY,
     storage: createCustomStorage(),
-    flowType: 'pkce',
+    flowType: 'implicit',
     // Custom lock that prevents infinite hangs.
     // The default GoTrueClient calls getSession() with acquireTimeout = -1
     // (infinite). If a slow token refresh holds the navigator lock, every
