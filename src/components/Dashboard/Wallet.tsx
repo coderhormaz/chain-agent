@@ -1,10 +1,99 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { IoCopy, IoCheckmarkCircle, IoTrendingUp, IoTrendingDown, IoEye, IoSend, IoWallet, IoMail, IoCash, IoClose, IoRefresh } from 'react-icons/io5';
+import { IoCopy, IoCheckmarkCircle, IoTrendingUp, IoTrendingDown, IoEye, IoSend, IoWallet, IoMail, IoCash, IoClose, IoRefresh, IoArrowUp, IoArrowDown, IoSwapVertical, IoFlame } from 'react-icons/io5';
 import { useWalletStore } from '../../store/walletStore';
 import { ethers } from 'ethers';
 import { TransactionService, type Transaction } from '../../services/transactionService';
 import { WalletService } from '../../lib/wallet';
+
+// ── Transaction Analytics Component ──
+const TransactionAnalytics: React.FC<{ transactions: Transaction[]; bnbPrice: number }> = ({ transactions, bnbPrice }) => {
+  const stats = useMemo(() => {
+    let sent = 0, received = 0, contractCalls = 0, totalGasBNB = 0;
+
+    for (const tx of transactions) {
+      // Parse amount from strings like "+0.001631 BNB" or "-0.000000 BNB"
+      const amtMatch = tx.amount.match(/([+-]?[\d.]+)/);
+      const amt = amtMatch ? Math.abs(parseFloat(amtMatch[1])) : 0;
+
+      if (tx.type === 'Sent') sent += amt;
+      else if (tx.type === 'Received') received += amt;
+      else contractCalls++;
+
+      // Gas cost estimation from gasUsed * gasPrice
+      if (tx.gasUsed && tx.gasPrice) {
+        const gasUsed = BigInt(tx.gasUsed);
+        const gasPrice = BigInt(tx.gasPrice);
+        const gasCostWei = gasUsed * gasPrice;
+        totalGasBNB += parseFloat(ethers.formatEther(gasCostWei));
+      }
+    }
+
+    return {
+      totalTx: transactions.length,
+      sent: sent.toFixed(6),
+      received: received.toFixed(6),
+      contractCalls,
+      totalGasBNB: totalGasBNB.toFixed(6),
+      totalGasUSD: (totalGasBNB * bnbPrice).toFixed(4),
+      sentUSD: (sent * bnbPrice).toFixed(2),
+      receivedUSD: (received * bnbPrice).toFixed(2),
+      netFlow: (received - sent).toFixed(6),
+      netFlowUSD: ((received - sent) * bnbPrice).toFixed(2),
+      isPositiveFlow: received >= sent
+    };
+  }, [transactions, bnbPrice]);
+
+  return (
+    <div className="analytics-grid">
+      <div className="analytics-stat">
+        <div className="analytics-stat-icon analytics-stat-icon--sent"><IoArrowUp size={16} /></div>
+        <div className="analytics-stat-info">
+          <span className="analytics-stat-label">Total Sent</span>
+          <span className="analytics-stat-value">{stats.sent} BNB</span>
+          <span className="analytics-stat-usd">≈ ${stats.sentUSD}</span>
+        </div>
+      </div>
+      <div className="analytics-stat">
+        <div className="analytics-stat-icon analytics-stat-icon--received"><IoArrowDown size={16} /></div>
+        <div className="analytics-stat-info">
+          <span className="analytics-stat-label">Total Received</span>
+          <span className="analytics-stat-value">{stats.received} BNB</span>
+          <span className="analytics-stat-usd">≈ ${stats.receivedUSD}</span>
+        </div>
+      </div>
+      <div className="analytics-stat">
+        <div className="analytics-stat-icon analytics-stat-icon--net"><IoSwapVertical size={16} /></div>
+        <div className="analytics-stat-info">
+          <span className="analytics-stat-label">Net Flow</span>
+          <span className={`analytics-stat-value ${stats.isPositiveFlow ? 'positive' : 'negative'}`}>
+            {stats.isPositiveFlow ? '+' : ''}{stats.netFlow} BNB
+          </span>
+          <span className="analytics-stat-usd">{stats.isPositiveFlow ? '+' : '-'}${Math.abs(parseFloat(stats.netFlowUSD)).toFixed(2)}</span>
+        </div>
+      </div>
+      <div className="analytics-stat">
+        <div className="analytics-stat-icon analytics-stat-icon--gas"><IoFlame size={16} /></div>
+        <div className="analytics-stat-info">
+          <span className="analytics-stat-label">Total Gas Spent</span>
+          <span className="analytics-stat-value">{stats.totalGasBNB} BNB</span>
+          <span className="analytics-stat-usd">≈ ${stats.totalGasUSD}</span>
+        </div>
+      </div>
+      <div className="analytics-stat analytics-stat--wide">
+        <div className="analytics-stat-info" style={{ textAlign: 'center', width: '100%' }}>
+          <span className="analytics-stat-label">Transaction Summary</span>
+          <div className="analytics-summary-row">
+            <span className="analytics-tag analytics-tag--total">{stats.totalTx} Total</span>
+            <span className="analytics-tag analytics-tag--sent">{transactions.filter(t => t.type === 'Sent').length} Sent</span>
+            <span className="analytics-tag analytics-tag--received">{transactions.filter(t => t.type === 'Received').length} Received</span>
+            {stats.contractCalls > 0 && <span className="analytics-tag analytics-tag--contract">{stats.contractCalls} Contracts</span>}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const Wallet: React.FC = () => {
   const { wallet, balance, balanceUSD, bnbPrice, isLoadingPrice, setBalance, updateBNBPrice } = useWalletStore();
@@ -294,6 +383,21 @@ const Wallet: React.FC = () => {
         </motion.div>
       </div>
 
+      {/* Transaction Analytics */}
+      {transactions.length > 0 && (
+        <motion.div
+          className="analytics-section"
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.25, delay: 0.08 }}
+        >
+          <div className="section-header">
+            <h3>Transaction Analytics</h3>
+          </div>
+          <TransactionAnalytics transactions={transactions} bnbPrice={bnbPrice?.price || 0} />
+        </motion.div>
+      )}
+
       {/* Transactions */}
       <motion.div
         className="transactions-section"
@@ -446,9 +550,16 @@ const Wallet: React.FC = () => {
               <div className="gas-estimation">
                 <div className="gas-info">
                   <span className="gas-label">Network Fee:</span>
-                  <span className="gas-amount">~0.0001 BNB</span>
-                  <span className="gas-usd">(≈ $0.02)</span>
+                  <span className="gas-amount">~0.000021 BNB</span>
+                  <span className="gas-usd">(≈ ${bnbPrice ? (0.000021 * bnbPrice.price).toFixed(4) : '0.01'})</span>
                 </div>
+                {sendAmount && bnbPrice && (
+                  <div className="gas-info" style={{ marginTop: '4px', paddingTop: '4px', borderTop: '1px solid var(--border-primary)' }}>
+                    <span className="gas-label">Total Cost:</span>
+                    <span className="gas-amount">~{(parseFloat(sendAmount) + 0.000021).toFixed(6)} BNB</span>
+                    <span className="gas-usd">(≈ ${((parseFloat(sendAmount) + 0.000021) * bnbPrice.price).toFixed(2)})</span>
+                  </div>
+                )}
               </div>
             </div>
 

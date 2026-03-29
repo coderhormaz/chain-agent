@@ -54,6 +54,8 @@ export interface TransactionDetails {
   token?: string; // 'BNB' or token address
   contactName?: string; // If resolved from a contact
   recipientDisplayName?: string; // For showing in UI
+  amountInUSD?: boolean; // true if user specified dollar amount
+  originalUSDAmount?: string; // Original USD value before conversion
 }
 
 export interface CertificateIssuanceDetails {
@@ -185,7 +187,14 @@ class GeminiAIService {
 
   // Build the system prompt for Gemini
   private buildPrompt(userInput: string, context: any[]): string {
-    const systemPrompt = `You are an opBNB blockchain assistant. Extract actions from natural language and respond in JSON.
+    const systemPrompt = `You are an opBNB blockchain assistant built for beginners. You have TWO roles:
+
+ROLE 1 — ACTION EXECUTION: Extract blockchain actions from natural language.
+ROLE 2 — KNOWLEDGE Q&A: Answer any blockchain, Web3, crypto, DeFi, or opBNB question accurately in beginner-friendly language. Use simple analogies, avoid jargon unless you explain it. Cover topics like: what is blockchain, gas fees, wallets, private keys, smart contracts, tokens vs coins, NFTs, DeFi, staking, bridges, Layer 1 vs Layer 2, consensus mechanisms, opBNB vs BNB Chain, ERC-20/BEP-20 standards, MEV, DAOs, liquidity pools, yield farming, airdrops, token burns, halvings, proof of work vs proof of stake, etc.
+
+HOW TO DECIDE:
+- If the user wants to DO something (create, send, mint, issue, verify, check) → extract an action (Role 1)
+- If the user is ASKING a question or wants to LEARN something → provide a helpful educational answer with NO action (Role 2). Set "action": null.
 
 ACTIONS: create_token | mint_nft | upload_nft | send_transaction | check_balance | get_transactions | issue_certificate | verify_certificate
 
@@ -209,11 +218,11 @@ REQUIRED FIELDS:
 - create_token: name, symbol, totalSupply (decimals auto-set to 18)
 - mint_nft: ALWAYS start with upload_nft first, then ask for name/description after upload
 - upload_nft: No fields needed, show upload button immediately, BUT extract NFT name/description ONLY if actual names provided (NOT commands like "mint nft")
-- send_transaction: recipient (contact name OR 0x address), amount, token (default: BNB)
+- send_transaction: recipient (contact name OR 0x address), amount, token (default: BNB), amountInUSD (boolean, true if user specified dollars like "$5 worth of BNB")
 - issue_certificate: recipientWallet, recipientName, institution, course, certificateType
 - verify_certificate: certId
 
-JSON FORMAT:
+JSON FORMAT (action request):
 \`\`\`json
 {
   "response": "Brief conversational response",
@@ -228,6 +237,15 @@ JSON FORMAT:
 }
 \`\`\`
 
+JSON FORMAT (knowledge question — no action):
+\`\`\`json
+{
+  "response": "Your detailed, beginner-friendly answer here. Use markdown formatting: **bold** for key terms, bullet points for lists, and simple analogies to explain concepts.",
+  "action": null,
+  "requiresConfirmation": false
+}
+\`\`\`
+
 RULES:
 1. Extract all available data from user input
 2. Auto-fill token defaults intelligently
@@ -235,9 +253,12 @@ RULES:
 4. Extract NFT name/description ONLY from actual names, NOT from commands (e.g., "name hormaz description cool nft" ✓, "mint nft" ✗)
 5. Commands like "mint nft", "create nft" should NOT populate name/description fields
 6. For send_transaction: Extract recipient name as-is (e.g., "send to hormazd" → recipient: "hormazd"). System will lookup contact automatically.
-7. Ask for missing fields conversationally
-8. Set isComplete=true when all required fields present
-9. Keep responses brief and friendly
+7. USD amounts: If the user says "send $5 worth of BNB" or "send 5 dollars of BNB" or "send 5 usd", set amountInUSD: true and amount: "5". The system will auto-convert to BNB using live price.
+8. Ask for missing fields conversationally
+9. Set isComplete=true when all required fields present
+10. Keep responses brief and friendly for actions
+11. For knowledge questions: give thorough, accurate, beginner-friendly answers. Use analogies (e.g., "A wallet is like a bank account but you control the keys"). Use markdown formatting (bold, bullets, headers). Set action to null.
+12. If the user asks about opBNB specifically: opBNB is a Layer 2 chain built on BNB Chain using Optimistic Rollups. It offers very low gas fees (~$0.001) and high throughput (5000+ TPS). Chain ID: 204. Native token: BNB.
 
 Context: ${JSON.stringify(context)}
 Input: "${userInput}"
@@ -338,6 +359,22 @@ Respond with JSON:`;
           console.log('[OpenRouter] Recipient is already a valid wallet address');
         }
         
+        // Convert USD amount to BNB using live price
+        if (txDetails.amountInUSD && txDetails.amount) {
+          try {
+            const { PriceService } = await import('../services/priceService');
+            const priceData = await PriceService.getBNBPrice();
+            const usdAmount = parseFloat(txDetails.amount);
+            const bnbAmount = usdAmount / priceData.price;
+            txDetails.originalUSDAmount = txDetails.amount;
+            txDetails.amount = bnbAmount.toFixed(8);
+            txDetails.amountInUSD = false; // Mark as converted
+            console.log(`💱 Converted $${usdAmount} → ${txDetails.amount} BNB at $${priceData.price}/BNB`);
+          } catch (err) {
+            console.error('USD conversion failed:', err);
+          }
+        }
+
         // Validate required fields
         const missingFields = [];
         if (!txDetails.recipient || !/^0x[a-fA-F0-9]{40}$/.test(txDetails.recipient)) {
@@ -359,6 +396,7 @@ Respond with JSON:`;
           recipientDisplayName: txDetails.recipientDisplayName,
           amount: txDetails.amount,
           token: txDetails.token,
+          originalUSD: txDetails.originalUSDAmount,
           missingFields,
           isComplete: parsedJson.action.isComplete,
           requiresConfirmation: parsedJson.requiresConfirmation
@@ -505,10 +543,12 @@ You're about to create a BEP-20 token with these details:
 • **Total Supply**: ${parseInt(tokenDetails.totalSupply || '0').toLocaleString()}
 • **Decimals**: ${tokenDetails.decimals}
 
-$ **Estimated Gas Cost**: ~${tokenGasEstimate} BNB (${tokenGasCostUSD})
+💰 **Cost Breakdown**:
+• Gas Fee: ~${tokenGasEstimate} BNB ≈ ${tokenGasCostUSD}
+• **Total Cost: ~${tokenGasEstimate} BNB ≈ ${tokenGasCostUSD}**
 ▸ **Network**: opBNB Mainnet
 
-This will deploy a new smart contract on opBNB. The contract will be automatically verified.
+This will deploy a new smart contract on opBNB.
 
 **Should I proceed with creating this token?** (Yes/No)`;
       }
@@ -538,7 +578,9 @@ You're about to mint an NFT with these details:
 • **Image**: ${nftDetails.imageUrl ? 'Provided' : 'Not provided'}
 ${nftDetails.attributes ? `• **Attributes**: ${nftDetails.attributes.length} traits` : ''}
 
-$ **Estimated Gas Cost**: ~${nftGasEstimate} BNB (${nftGasCostUSD})
+💰 **Cost Breakdown**:
+• Gas Fee: ~${nftGasEstimate} BNB ≈ ${nftGasCostUSD}
+• **Total Cost: ~${nftGasEstimate} BNB ≈ ${nftGasCostUSD}**
 ▸ **Network**: opBNB Mainnet
 
 Metadata will be stored on-chain. The NFT will be minted to your wallet.
@@ -551,20 +593,37 @@ Metadata will be stored on-chain. The NFT will be minted to your wallet.
         const transferGasEstimate = await BlockchainService.estimateGas('transfer');
         const transferGasCostUSD = await BlockchainService.getGasCostUSD('transfer');
         
+        // Get live BNB price for amount display
+        const { PriceService } = await import('./priceService');
+        const sendPriceData = await PriceService.getBNBPrice();
+        const sendAmountNum = parseFloat(txDetails.amount || '0');
+        const sendAmountUSD = (sendAmountNum * sendPriceData.price).toFixed(2);
+        const totalCostBNB = (sendAmountNum + parseFloat(transferGasEstimate)).toFixed(8);
+        const totalCostUSD = (parseFloat(totalCostBNB) * sendPriceData.price).toFixed(2);
+        
         // Build recipient display string
         const recipientDisplay = txDetails.contactName 
           ? `**${txDetails.contactName}** (\`${txDetails.recipient}\`)`
           : `\`${txDetails.recipient}\``;
         
+        // Show original USD if converted
+        const amountLine = txDetails.originalUSDAmount
+          ? `${txDetails.amount} ${txDetails.token || 'BNB'} (≈ $${txDetails.originalUSDAmount} USD)`
+          : `${txDetails.amount} ${txDetails.token || 'BNB'} (≈ $${sendAmountUSD} USD)`;
+        
         return `⚡ **Transaction Confirmation**
 
 You're about to send:
-• **Amount**: ${txDetails.amount} ${txDetails.token || 'BNB'}
+• **Amount**: ${amountLine}
 • **To**: ${recipientDisplay}
 • **From**: Your connected wallet
 
-$ **Estimated Gas Cost**: ~${transferGasEstimate} BNB (${transferGasCostUSD})
-▸ **Network**: opBNB Mainnet
+💰 **Cost Breakdown**:
+• Send Amount: ${txDetails.amount} BNB ≈ **$${sendAmountUSD}**
+• Gas Fee: ~${transferGasEstimate} BNB ≈ ${transferGasCostUSD}
+• **Total Cost: ~${totalCostBNB} BNB ≈ $${totalCostUSD}**
+
+📊 BNB Price: $${sendPriceData.price.toLocaleString()} | Network: opBNB Mainnet
 
 This transaction cannot be reversed once confirmed.
 
@@ -573,7 +632,7 @@ This transaction cannot be reversed once confirmed.
 
       case 'issue_certificate': {
         const certDetails = action.details as CertificateIssuanceDetails;
-        const certGasEstimate = await BlockchainService.estimateGas('nft'); // similar gas cost
+        const certGasEstimate = await BlockchainService.estimateGas('nft');
         const certGasCostUSD = await BlockchainService.getGasCostUSD('nft');
 
         return `🎓 **Certificate Issuance Confirmation**
@@ -587,10 +646,12 @@ You're about to issue a blockchain-verified certificate:
 ${certDetails.grade ? `• **Grade**: ${certDetails.grade}` : ''}
 ${certDetails.description ? `• **Description**: ${certDetails.description}` : ''}
 
-$ **Estimated Gas Cost**: ~${certGasEstimate} BNB (${certGasCostUSD})
+💰 **Cost Breakdown**:
+• Gas Fee: ~${certGasEstimate} BNB ≈ ${certGasCostUSD}
+• **Total Cost: ~${certGasEstimate} BNB ≈ ${certGasCostUSD}**
 ▸ **Network**: opBNB Mainnet
 
-The certificate metadata will be stored on IPFS and the proof recorded on-chain. It can be verified by anyone at any time.
+The certificate metadata will be stored on IPFS and the proof recorded on-chain.
 
 **Should I proceed with issuing this certificate?** (Yes/No)`;
       }

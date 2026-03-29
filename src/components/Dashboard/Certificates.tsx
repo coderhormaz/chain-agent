@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Award, Copy, CheckCircle, ExternalLink, Clock, ShieldCheck, ShieldX, Send, X, RefreshCw, Building2 } from 'lucide-react';
+import { Award, Copy, CheckCircle, ExternalLink, Clock, ShieldCheck, ShieldX, Send, X, RefreshCw, Building2, Download } from 'lucide-react';
 import QRCode from 'qrcode';
 import { useWalletStore } from '../../store/walletStore';
 import { useAuthStore } from '../../store/authStore';
@@ -94,6 +94,57 @@ const Certificates: React.FC = () => {
     return new Date(timestamp * 1000).toLocaleDateString('en-GB', {
       day: 'numeric', month: 'short', year: 'numeric'
     });
+  };
+
+  const handleDownloadPDF = (cert: CertificateData) => {
+    const appUrl = import.meta.env.VITE_APP_URL || window.location.origin;
+    const verifyUrl = `${appUrl}/verify/${cert.certId}`;
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+    printWindow.document.write(`<!DOCTYPE html><html><head><title>Certificate #${cert.certId}</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:#fff;color:#1a1a1a;padding:40px}
+.cert{max-width:700px;margin:0 auto;border:3px solid #1a1a1a;border-radius:12px;padding:48px;text-align:center;position:relative}
+.cert::before{content:'';position:absolute;inset:8px;border:1px solid #ccc;border-radius:8px;pointer-events:none}
+.badge{display:inline-block;padding:6px 16px;border-radius:20px;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:1px;margin-bottom:20px}
+.valid{background:#dcfce7;color:#166534}.revoked{background:#fce4ec;color:#b71c1c}
+h1{font-size:28px;font-weight:700;margin-bottom:6px}
+.inst{font-size:16px;color:#666;margin-bottom:32px}
+.label{font-size:11px;text-transform:uppercase;letter-spacing:1.5px;color:#888;margin-bottom:4px}
+.value{font-size:16px;font-weight:500;margin-bottom:20px}
+.row{display:flex;justify-content:space-between;text-align:left;gap:24px;margin-top:24px;padding-top:24px;border-top:1px solid #eee}
+.row div{flex:1}
+.mono{font-family:monospace;font-size:12px;word-break:break-all;color:#555}
+.footer{margin-top:32px;padding-top:16px;border-top:1px solid #eee;font-size:11px;color:#999}
+.verify{margin-top:8px;font-size:12px;color:#2563eb}
+@media print{body{padding:20px}.cert{border-width:2px}}
+</style></head><body>
+<div class="cert">
+<div class="badge ${cert.isValid ? 'valid' : 'revoked'}">${cert.isValid ? '✓ Verified Certificate' : '✗ Revoked'}</div>
+<h1>${cert.metadata?.course || 'Certificate #' + cert.certId}</h1>
+<p class="inst">${cert.metadata?.institution || ''}</p>
+${cert.metadata?.recipientName ? `<p class="label">Awarded To</p><p class="value">${cert.metadata.recipientName}</p>` : ''}
+${cert.metadata?.grade ? `<p class="label">Grade</p><p class="value">${cert.metadata.grade}</p>` : ''}
+${cert.metadata?.certificateType ? `<p class="label">Type</p><p class="value" style="text-transform:capitalize">${cert.metadata.certificateType}</p>` : ''}
+<p class="label">Date Issued</p><p class="value">${formatDate(cert.issuedAt)}</p>
+${cert.metadata?.description ? `<p class="label">Description</p><p class="value">${cert.metadata.description}</p>` : ''}
+<div class="row">
+<div><p class="label">Recipient Wallet</p><p class="mono">${cert.recipient}</p></div>
+<div><p class="label">Issuer Wallet</p><p class="mono">${cert.issuer}</p></div>
+</div>
+<div class="row">
+<div><p class="label">Certificate ID</p><p class="mono">#${cert.certId}</p></div>
+<div><p class="label">Blockchain</p><p class="mono">opBNB Mainnet (Chain 204)</p></div>
+</div>
+<div class="footer">
+<p>This certificate is permanently recorded on the opBNB blockchain and can be independently verified.</p>
+<p class="verify">Verify: ${verifyUrl}</p>
+</div>
+</div>
+<script>window.onload=function(){window.print()}</script>
+</body></html>`);
+    printWindow.document.close();
   };
 
   const handleIssueCertificate = async () => {
@@ -518,6 +569,13 @@ const Certificates: React.FC = () => {
                 >
                   {copiedText?.includes('/verify/') ? <CheckCircle size={13} /> : <ExternalLink size={13} />}
                   {copiedText?.includes('/verify/') ? 'Copied!' : 'Copy Verification Link'}
+                </button>
+                <button
+                  className="cert-verify-link-btn"
+                  onClick={() => handleDownloadPDF(selectedCert)}
+                >
+                  <Download size={13} />
+                  Download as PDF
                 </button>
               </div>
             </motion.div>
