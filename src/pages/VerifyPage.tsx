@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import QRCode from 'qrcode';
 import { ShieldCheck, ShieldX, AlertTriangle, Search, ArrowLeft, ExternalLink, Copy, CheckCircle } from 'lucide-react';
 import { CertificateService, type CertificateData } from '../services/certificateService';
+import { shortenAddress, copyToClipboard } from '../lib/utils';
 
 const VerifyPage: React.FC = () => {
   const { certId } = useParams<{ certId: string }>();
@@ -47,14 +48,11 @@ const VerifyPage: React.FC = () => {
     }
   };
 
-  const copyToClipboard = async (text: string) => {
-    await navigator.clipboard.writeText(text);
+  const handleCopy = async (text: string) => {
+    await copyToClipboard(text);
     setCopiedText(text);
     setTimeout(() => setCopiedText(null), 2000);
   };
-
-  const shortenAddress = (addr: string) =>
-    addr ? `${addr.slice(0, 6)}...${addr.slice(-4)}` : '';
 
   const formatDate = (timestamp: number) => {
     if (!timestamp) return 'N/A';
@@ -188,7 +186,7 @@ const VerifyPage: React.FC = () => {
                     <span className="verify-detail-label">Issuer Wallet</span>
                     <span className="verify-detail-value verify-detail-value--mono">
                       {shortenAddress(certificate!.issuer)}
-                      <button className="verify-copy-btn" onClick={() => copyToClipboard(certificate!.issuer)}>
+                      <button className="verify-copy-btn" onClick={() => handleCopy(certificate!.issuer)}>
                         {copiedText === certificate!.issuer ? <CheckCircle size={13} /> : <Copy size={13} />}
                       </button>
                       <a href={`${explorerBase}/address/${certificate!.issuer}`} target="_blank" rel="noopener noreferrer" className="verify-explorer-link">
@@ -200,7 +198,7 @@ const VerifyPage: React.FC = () => {
                     <span className="verify-detail-label">Recipient Wallet</span>
                     <span className="verify-detail-value verify-detail-value--mono">
                       {shortenAddress(certificate!.recipient)}
-                      <button className="verify-copy-btn" onClick={() => copyToClipboard(certificate!.recipient)}>
+                      <button className="verify-copy-btn" onClick={() => handleCopy(certificate!.recipient)}>
                         {copiedText === certificate!.recipient ? <CheckCircle size={13} /> : <Copy size={13} />}
                       </button>
                     </span>

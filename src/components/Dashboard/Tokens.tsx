@@ -4,6 +4,7 @@ import { IoCube, IoCopy, IoCheckmarkCircle, IoRefresh, IoWallet } from 'react-ic
 import { BlockchainService } from '../../services/blockchainService';
 import { useWalletStore } from '../../store/walletStore';
 import { WalletService } from '../../lib/wallet';
+import { shortenAddress, copyToClipboard } from '../../lib/utils';
 
 interface Token {
   id: string;
@@ -118,34 +119,10 @@ const Tokens: React.FC = () => {
     }
   };
 
-  const shortenAddress = (address: string) => {
-    return `${address.slice(0, 6)}...${address.slice(-4)}`;
-  };
-
-  const copyToClipboard = async (text: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopiedAddress(text);
-      
-      // Clear the copied state after 2 seconds
-      setTimeout(() => {
-        setCopiedAddress(null);
-      }, 2000);
-    } catch (err) {
-      console.error('Failed to copy text: ', err);
-      // Fallback for older browsers
-      const textArea = document.createElement('textarea');
-      textArea.value = text;
-      document.body.appendChild(textArea);
-      textArea.select();
-      document.execCommand('copy');
-      document.body.removeChild(textArea);
-      
-      setCopiedAddress(text);
-      setTimeout(() => {
-        setCopiedAddress(null);
-      }, 2000);
-    }
+  const handleCopy = async (text: string) => {
+    await copyToClipboard(text);
+    setCopiedAddress(text);
+    setTimeout(() => setCopiedAddress(null), 2000);
   };
 
   return (
@@ -268,7 +245,7 @@ const Tokens: React.FC = () => {
                     <span className="value">{shortenAddress(token.contractAddress)}</span>
                     <motion.button
                       className={`copy-btn ${copiedAddress === token.contractAddress ? 'copied' : ''}`}
-                      onClick={() => copyToClipboard(token.contractAddress)}
+                      onClick={() => handleCopy(token.contractAddress)}
                       whileHover={{ scale: 1.1 }}
                       whileTap={{ scale: 0.9 }}
                       title={copiedAddress === token.contractAddress ? "Contract Copied!" : "Copy Contract Address"}
@@ -288,7 +265,7 @@ const Tokens: React.FC = () => {
                 </button>
                 <button
                   className={`action-btn secondary ${copiedAddress === token.contractAddress ? 'copied' : ''}`}
-                  onClick={() => copyToClipboard(token.contractAddress)}
+                  onClick={() => handleCopy(token.contractAddress)}
                 >
                   {copiedAddress === token.contractAddress ? <><IoCheckmarkCircle /> Copied</> : <><IoCopy /> Copy</>}
                 </button>

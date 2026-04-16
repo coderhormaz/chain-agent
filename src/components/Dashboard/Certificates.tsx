@@ -7,6 +7,7 @@ import { useAuthStore } from '../../store/authStore';
 import { useCertificateStore } from '../../store/certificateStore';
 import { CertificateService, type CertificateData } from '../../services/certificateService';
 import { WalletService } from '../../lib/wallet';
+import { shortenAddress, copyToClipboard } from '../../lib/utils';
 
 const Certificates: React.FC = () => {
   const { wallet } = useWalletStore();
@@ -80,14 +81,11 @@ const Certificates: React.FC = () => {
     }
   }, [selectedCert]);
 
-  const copyToClipboard = useCallback(async (text: string) => {
-    await navigator.clipboard.writeText(text);
+  const handleCopy = useCallback(async (text: string) => {
+    await copyToClipboard(text);
     setCopiedText(text);
     setTimeout(() => setCopiedText(null), 2000);
   }, []);
-
-  const shortenAddress = (addr: string) =>
-    addr ? `${addr.slice(0, 6)}...${addr.slice(-4)}` : '';
 
   const formatDate = (timestamp: number) => {
     if (!timestamp) return 'N/A';
@@ -512,7 +510,7 @@ ${cert.metadata?.description ? `<p class="label">Description</p><p class="value"
                   <span className="cert-detail-label">Recipient Wallet</span>
                   <span className="cert-detail-value cert-detail-value--mono">
                     {shortenAddress(selectedCert.recipient)}
-                    <button className="cert-copy-btn" onClick={() => copyToClipboard(selectedCert.recipient)}>
+                    <button className="cert-copy-btn" onClick={() => handleCopy(selectedCert.recipient)}>
                       {copiedText === selectedCert.recipient ? <CheckCircle size={13} /> : <Copy size={13} />}
                     </button>
                   </span>
@@ -521,7 +519,7 @@ ${cert.metadata?.description ? `<p class="label">Description</p><p class="value"
                   <span className="cert-detail-label">Issuer Wallet</span>
                   <span className="cert-detail-value cert-detail-value--mono">
                     {shortenAddress(selectedCert.issuer)}
-                    <button className="cert-copy-btn" onClick={() => copyToClipboard(selectedCert.issuer)}>
+                    <button className="cert-copy-btn" onClick={() => handleCopy(selectedCert.issuer)}>
                       {copiedText === selectedCert.issuer ? <CheckCircle size={13} /> : <Copy size={13} />}
                     </button>
                   </span>
@@ -564,7 +562,7 @@ ${cert.metadata?.description ? `<p class="label">Description</p><p class="value"
                   className="cert-verify-link-btn"
                   onClick={() => {
                     const appUrl = import.meta.env.VITE_APP_URL || window.location.origin;
-                    copyToClipboard(`${appUrl}/verify/${selectedCert.certId}`);
+                    handleCopy(`${appUrl}/verify/${selectedCert.certId}`);
                   }}
                 >
                   {copiedText?.includes('/verify/') ? <CheckCircle size={13} /> : <ExternalLink size={13} />}

@@ -36,7 +36,8 @@ export class WalletService {
 
   // Get opBNB provider (mainnet)
   static getProvider(): ethers.JsonRpcProvider {
-    return new ethers.JsonRpcProvider('https://opbnb-mainnet-rpc.bnbchain.org');
+    const rpcUrl = import.meta.env.VITE_OPBNB_RPC_URL || 'https://opbnb-mainnet-rpc.bnbchain.org';
+    return new ethers.JsonRpcProvider(rpcUrl);
   }
 
   // Get wallet with provider

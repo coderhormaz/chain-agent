@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store/authStore';
+import { ensureSession, isAuthError } from './supabaseHelpers';
 
 export interface ConversationRow {
   id: string;
@@ -30,41 +31,11 @@ export class ConversationService {
     return authUser.id;
   }
 
-  private static async ensureSession(): Promise<void> {
-    try {
-      const timeout = new Promise<null>((r) => setTimeout(() => r(null), 3000));
-      const session = await Promise.race([
-        supabase.auth.getSession().then(({ data }) => data.session),
-        timeout,
-      ]);
-      if (!session) {
-        const refreshed = await Promise.race([
-          supabase.auth.refreshSession().then(({ data }) => data.session),
-          timeout,
-        ]);
-        if (refreshed?.user) {
-          useAuthStore.getState().setUser(refreshed.user);
-        }
-      }
-    } catch {
-      // Non-fatal
-    }
-  }
-
-  private static isAuthError(error: { message?: string; code?: string }): boolean {
-    return !!(
-      error.message?.includes('JWT expired') ||
-      error.code === 'PGRST301' ||
-      error.code === '42501' ||
-      error.message?.includes('policy')
-    );
-  }
-
   // ── Conversations CRUD ──
 
   static async getConversations(): Promise<ConversationRow[]> {
     const userId = this.getCurrentUserId();
-    await this.ensureSession();
+    await ensureSession();
 
     // Only return conversations that have at least one message
     const { data, error } = await supabase
@@ -74,7 +45,7 @@ export class ConversationService {
       .order('updated_at', { ascending: false });
 
     if (error) {
-      if (this.isAuthError(error)) {
+      if (isAuthError(error)) {
         await supabase.auth.refreshSession();
         const retry = await supabase
           .from('conversations')
@@ -93,7 +64,7 @@ export class ConversationService {
 
   static async createConversation(title = 'New Chat'): Promise<ConversationRow> {
     const userId = this.getCurrentUserId();
-    await this.ensureSession();
+    await ensureSession();
 
     const { data, error } = await supabase
       .from('conversations')
@@ -102,7 +73,7 @@ export class ConversationService {
       .single();
 
     if (error) {
-      if (this.isAuthError(error)) {
+      if (isAuthError(error)) {
         await supabase.auth.refreshSession();
         const retry = await supabase
           .from('conversations')
@@ -118,7 +89,7 @@ export class ConversationService {
 
   static async updateConversationTitle(id: string, title: string): Promise<void> {
     const userId = this.getCurrentUserId();
-    await this.ensureSession();
+    await ensureSession();
 
     const { error } = await supabase
       .from('conversations')
@@ -127,7 +98,7 @@ export class ConversationService {
       .eq('user_id', userId);
 
     if (error) {
-      if (this.isAuthError(error)) {
+      if (isAuthError(error)) {
         await supabase.auth.refreshSession();
         await supabase
           .from('conversations')
@@ -142,7 +113,7 @@ export class ConversationService {
 
   static async deleteConversation(id: string): Promise<void> {
     const userId = this.getCurrentUserId();
-    await this.ensureSession();
+    await ensureSession();
 
     const { error } = await supabase
       .from('conversations')
@@ -151,7 +122,7 @@ export class ConversationService {
       .eq('user_id', userId);
 
     if (error) {
-      if (this.isAuthError(error)) {
+      if (isAuthError(error)) {
         await supabase.auth.refreshSession();
         await supabase
           .from('conversations')
@@ -166,7 +137,7 @@ export class ConversationService {
 
   static async deleteAllConversations(): Promise<void> {
     const userId = this.getCurrentUserId();
-    await this.ensureSession();
+    await ensureSession();
 
     const { error } = await supabase
       .from('conversations')
@@ -182,7 +153,7 @@ export class ConversationService {
 
   static async getMessages(conversationId: string): Promise<ConversationMessageRow[]> {
     const userId = this.getCurrentUserId();
-    await this.ensureSession();
+    await ensureSession();
 
     const { data, error } = await supabase
       .from('conversation_messages')
@@ -192,7 +163,7 @@ export class ConversationService {
       .order('created_at', { ascending: true });
 
     if (error) {
-      if (this.isAuthError(error)) {
+      if (isAuthError(error)) {
         await supabase.auth.refreshSession();
         const retry = await supabase
           .from('conversation_messages')
@@ -218,7 +189,7 @@ export class ConversationService {
     }
   ): Promise<ConversationMessageRow> {
     const userId = this.getCurrentUserId();
-    await this.ensureSession();
+    await ensureSession();
 
     const { data, error } = await supabase
       .from('conversation_messages')
@@ -235,7 +206,7 @@ export class ConversationService {
       .single();
 
     if (error) {
-      if (this.isAuthError(error)) {
+      if (isAuthError(error)) {
         await supabase.auth.refreshSession();
         const retry = await supabase
           .from('conversation_messages')

@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store/authStore';
+import { ensureSession } from './supabaseHelpers';
 
 export interface Contact {
   id: string;
@@ -35,32 +36,6 @@ export class ContactService {
   }
 
   /**
-   * Ensure the Supabase client has a valid session before making queries.
-   * Races against a short timeout so it never blocks the UI for too long.
-   * If this fails, queries still run — the Supabase client will attempt its
-   * own internal refresh via autoRefreshToken.
-   */
-  private static async ensureSession(): Promise<void> {
-    try {
-      const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000));
-      const sessionPromise = supabase.auth.getSession().then(({ data }) => data.session);
-      const session = await Promise.race([sessionPromise, timeoutPromise]);
-
-      if (!session) {
-        // No session or timed out — try a quick refresh
-        const refreshPromise = supabase.auth.refreshSession().then(({ data }) => data.session);
-        const refreshed = await Promise.race([refreshPromise, timeoutPromise]);
-        if (refreshed?.user) {
-          useAuthStore.getState().setUser(refreshed.user);
-        }
-      }
-    } catch (e) {
-      // Non-fatal: the Supabase client will still try internally
-      console.warn('[ContactService] ensureSession failed (non-fatal):', e);
-    }
-  }
-
-  /**
    * Add a new contact for the current user
    */
   static async addContact(contactData: CreateContactData): Promise<Contact> {
@@ -79,7 +54,7 @@ export class ContactService {
     };
 
     // Ensure we have a valid session before the insert
-    await this.ensureSession();
+    await ensureSession();
 
     const { data, error } = await supabase
       .from('contacts')
@@ -135,7 +110,7 @@ export class ContactService {
     const userId = this.getCurrentUserId();
 
     // Ensure session is valid before querying
-    await this.ensureSession();
+    await ensureSession();
 
     const { data, error } = await supabase
       .from('contacts')
@@ -178,7 +153,7 @@ export class ContactService {
   static async searchContactByName(name: string): Promise<Contact | null> {
     const userId = this.getCurrentUserId();
     const searchName = name.trim();
-    await this.ensureSession();
+    await ensureSession();
 
     // First try exact match (case-insensitive)
     let { data, error } = await supabase
@@ -213,7 +188,7 @@ export class ContactService {
    */
   static async searchContactsByPartialName(partialName: string): Promise<Contact[]> {
     const userId = this.getCurrentUserId();
-    await this.ensureSession();
+    await ensureSession();
 
     const { data, error } = await supabase
       .from('contacts')
@@ -243,7 +218,7 @@ export class ContactService {
     if (updates.contact_name) updateData.contact_name = updates.contact_name.trim();
     if (updates.wallet_address) updateData.wallet_address = updates.wallet_address.toLowerCase();
 
-    await this.ensureSession();
+    await ensureSession();
 
     const { data, error } = await supabase
       .from('contacts')
@@ -272,7 +247,7 @@ export class ContactService {
    */
   static async deleteContact(contactId: string): Promise<void> {
     const userId = this.getCurrentUserId();
-    await this.ensureSession();
+    await ensureSession();
 
     const { error } = await supabase
       .from('contacts')
@@ -290,7 +265,7 @@ export class ContactService {
    */
   static async getContactById(contactId: string): Promise<Contact | null> {
     const userId = this.getCurrentUserId();
-    await this.ensureSession();
+    await ensureSession();
 
     const { data, error } = await supabase
       .from('contacts')
@@ -320,7 +295,7 @@ export class ContactService {
   static async getContactCount(): Promise<number> {
     try {
       const userId = this.getCurrentUserId();
-      await this.ensureSession();
+      await ensureSession();
 
       const { count, error } = await supabase
         .from('contacts')

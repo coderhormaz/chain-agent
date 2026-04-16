@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store/authStore';
+import { ensureSession, isAuthError } from './supabaseHelpers';
 
 export interface NFTMetadataRow {
   id: string;
@@ -33,33 +34,6 @@ export class NFTMetadataService {
     return authUser.id;
   }
 
-  private static async ensureSession(): Promise<void> {
-    try {
-      const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000));
-      const sessionPromise = supabase.auth.getSession().then(({ data }) => data.session);
-      const session = await Promise.race([sessionPromise, timeoutPromise]);
-
-      if (!session) {
-        const refreshPromise = supabase.auth.refreshSession().then(({ data }) => data.session);
-        const refreshed = await Promise.race([refreshPromise, timeoutPromise]);
-        if (refreshed?.user) {
-          useAuthStore.getState().setUser(refreshed.user);
-        }
-      }
-    } catch (e) {
-      console.warn('[NFTMetadataService] ensureSession failed (non-fatal):', e);
-    }
-  }
-
-  private static isAuthError(error: any): boolean {
-    return (
-      error?.message?.includes('JWT expired') ||
-      error?.code === 'PGRST301' ||
-      error?.code === '42501' ||
-      error?.message?.includes('policy')
-    );
-  }
-
   /**
    * Save (upsert) NFT metadata into Supabase cache.
    * Uses ON CONFLICT to update if the same contract+tokenId already exists.
@@ -67,7 +41,7 @@ export class NFTMetadataService {
   static async saveMetadata(data: SaveNFTMetadataData): Promise<void> {
     try {
       const userId = this.getCurrentUserId();
-      await this.ensureSession();
+      await ensureSession();
 
       const row = {
         user_id: userId,
@@ -85,7 +59,7 @@ export class NFTMetadataService {
         .upsert(row, { onConflict: 'contract_address,token_id' });
 
       if (error) {
-        if (this.isAuthError(error)) {
+        if (isAuthError(error)) {
           console.log('[NFTMetadataService] Auth issue, refreshing and retrying...');
           await supabase.auth.refreshSession();
           const retry = await supabase
@@ -110,7 +84,7 @@ export class NFTMetadataService {
     const map = new Map<string, NFTMetadataRow>();
     try {
       const userId = this.getCurrentUserId();
-      await this.ensureSession();
+      await ensureSession();
 
       const { data, error } = await supabase
         .from('nft_metadata')
@@ -118,7 +92,7 @@ export class NFTMetadataService {
         .eq('user_id', userId);
 
       if (error) {
-        if (this.isAuthError(error)) {
+        if (isAuthError(error)) {
           await supabase.auth.refreshSession();
           const retry = await supabase
             .from('nft_metadata')
@@ -152,7 +126,7 @@ export class NFTMetadataService {
   static async deleteMetadata(contractAddress: string, tokenId: string): Promise<void> {
     try {
       this.getCurrentUserId();
-      await this.ensureSession();
+      await ensureSession();
 
       const { error } = await supabase
         .from('nft_metadata')

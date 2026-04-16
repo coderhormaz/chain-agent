@@ -5,6 +5,7 @@ import { useWalletStore } from '../../store/walletStore';
 import { ethers } from 'ethers';
 import { TransactionService, type Transaction } from '../../services/transactionService';
 import { WalletService } from '../../lib/wallet';
+import { shortenAddress, copyToClipboard } from '../../lib/utils';
 
 // ── Transaction Analytics Component ──
 const TransactionAnalytics: React.FC<{ transactions: Transaction[]; bnbPrice: number }> = ({ transactions, bnbPrice }) => {
@@ -115,8 +116,8 @@ const Wallet: React.FC = () => {
     
     try {
       setIsLoadingBalance(true);
-      // opBNB Mainnet RPC
-      const provider = new ethers.JsonRpcProvider('https://opbnb-mainnet-rpc.bnbchain.org');
+      const rpcUrl = import.meta.env.VITE_OPBNB_RPC_URL || 'https://opbnb-mainnet-rpc.bnbchain.org';
+      const provider = new ethers.JsonRpcProvider(rpcUrl);
       const balanceWei = await provider.getBalance(wallet.address);
       const balanceEth = ethers.formatEther(balanceWei);
       const formattedBalance = parseFloat(balanceEth).toFixed(6);
@@ -161,34 +162,10 @@ const Wallet: React.FC = () => {
     }
   }, [wallet?.address, updateBNBPrice, fetchBalance, fetchTransactions]);
 
-  const shortenAddress = (address: string) => {
-    return `${address.slice(0, 6)}...${address.slice(-4)}`;
-  };
-
-  const copyToClipboard = async (text: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopiedText(text);
-      
-      // Clear the copied state after 2 seconds
-      setTimeout(() => {
-        setCopiedText(null);
-      }, 2000);
-    } catch (err) {
-      console.error('Failed to copy text: ', err);
-      // Fallback for older browsers
-      const textArea = document.createElement('textarea');
-      textArea.value = text;
-      document.body.appendChild(textArea);
-      textArea.select();
-      document.execCommand('copy');
-      document.body.removeChild(textArea);
-      
-      setCopiedText(text);
-      setTimeout(() => {
-        setCopiedText(null);
-      }, 2000);
-    }
+  const handleCopy = async (text: string) => {
+    await copyToClipboard(text);
+    setCopiedText(text);
+    setTimeout(() => setCopiedText(null), 2000);
   };
 
   const handleSendBNB = async () => {
@@ -196,7 +173,8 @@ const Wallet: React.FC = () => {
     
     try {
       setIsLoadingBalance(true);
-      const provider = new ethers.JsonRpcProvider('https://opbnb-mainnet-rpc.bnbchain.org');
+      const rpcUrl = import.meta.env.VITE_OPBNB_RPC_URL || 'https://opbnb-mainnet-rpc.bnbchain.org';
+      const provider = new ethers.JsonRpcProvider(rpcUrl);
       
       // Decrypt private key before using it
       const decryptedPrivateKey = WalletService.decryptPrivateKey(wallet.privateKey);
@@ -356,7 +334,7 @@ const Wallet: React.FC = () => {
             {wallet?.address && (
               <button
                 className={`copy-btn ${copiedText === wallet.address ? 'copied' : ''}`}
-                onClick={() => copyToClipboard(wallet.address)}
+                onClick={() => handleCopy(wallet.address)}
                 title={copiedText === wallet.address ? "Copied!" : "Copy"}
               >
                 {copiedText === wallet.address ? <IoCheckmarkCircle size={16} /> : <IoCopy size={16} />}
@@ -691,7 +669,7 @@ const Wallet: React.FC = () => {
                 <code className="pk-code">{decryptedPrivateKey}</code>
                 <button
                   className={`pk-copy-btn ${copiedText === decryptedPrivateKey ? 'copied' : ''}`}
-                  onClick={() => copyToClipboard(decryptedPrivateKey)}
+                  onClick={() => handleCopy(decryptedPrivateKey)}
                 >
                   {copiedText === decryptedPrivateKey ? (
                     <><IoCheckmarkCircle size={16} /> Copied</>
