@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { BlockchainAction } from '../services/geminiAI';
+import { ConversationService } from '../services/conversationService';
 
 export interface ConversationMessage {
   id: string;
@@ -15,16 +16,36 @@ export interface ConversationMessage {
   hasUploaded?: boolean;
 }
 
+export interface ConversationSummary {
+  id: string;
+  title: string;
+  updatedAt: Date;
+}
+
 export interface PendingAction {
   action: BlockchainAction;
   messageId: string;
   isWaitingForConfirmation: boolean;
 }
 
+const WELCOME_MESSAGE: ConversationMessage = {
+  id: 'welcome',
+  type: 'ai',
+  content: 'Hello! I\'m your opBNB Chain Agent. I can help you:\n\n◎ Create BEP-20 tokens\n■ Mint NFTs with Lighthouse IPFS storage\n⚡ Send BNB transactions\n🎓 Issue & verify blockchain certificates\n◆ Check balances and transaction history\n\nJust tell me what you\'d like to do in natural language!',
+  timestamp: new Date()
+};
+
 interface ConversationState {
   messages: ConversationMessage[];
   pendingAction: PendingAction | null;
   isProcessing: boolean;
+
+  // Chat history state
+  conversations: ConversationSummary[];
+  activeConversationId: string | null;
+  isLoadingHistory: boolean;
+  historyPanelOpen: boolean;
+  _titleGenerated: boolean;
   
   // Actions
   addMessage: (message: Omit<ConversationMessage, 'id' | 'timestamp'>) => void;
@@ -34,21 +55,178 @@ interface ConversationState {
   clearConversation: () => void;
   confirmAction: () => Promise<void>;
   rejectAction: () => void;
+
+  // Chat history actions
+  loadConversations: () => Promise<void>;
+  selectConversation: (id: string) => Promise<void>;
+  startNewConversation: () => Promise<void>;
+  deleteConversation: (id: string) => Promise<void>;
+  setHistoryPanelOpen: (open: boolean) => void;
+  persistMessage: (message: ConversationMessage) => Promise<void>;
 }
 
 export const useConversationStore = create<ConversationState>()(
   persist(
     (set, get) => ({
-      messages: [
-        {
-          id: 'welcome',
-          type: 'ai',
-          content: 'Hello! I\'m your opBNB Chain Agent. I can help you:\n\n◎ Create BEP-20 tokens\n■ Mint NFTs with Lighthouse IPFS storage\n⚡ Send BNB transactions\n🎓 Issue & verify blockchain certificates\n◆ Check balances and transaction history\n\nJust tell me what you\'d like to do in natural language!',
-          timestamp: new Date()
-        }
-      ],
+      messages: [{ ...WELCOME_MESSAGE, timestamp: new Date() }],
       pendingAction: null,
       isProcessing: false,
+
+      // Chat history
+      conversations: [],
+      activeConversationId: null,
+      isLoadingHistory: false,
+      historyPanelOpen: false,
+      _titleGenerated: false,
+
+      // ── Chat history actions ──
+
+      loadConversations: async () => {
+        try {
+          set({ isLoadingHistory: true });
+          const rows = await ConversationService.getConversations();
+          const conversations: ConversationSummary[] = rows.map((r) => ({
+            id: r.id,
+            title: r.title,
+            updatedAt: new Date(r.updated_at),
+          }));
+          set({ conversations, isLoadingHistory: false });
+        } catch (err) {
+          console.warn('[ConversationStore] loadConversations failed:', err);
+          set({ isLoadingHistory: false });
+        }
+      },
+
+      selectConversation: async (id: string) => {
+        try {
+          set({ isLoadingHistory: true });
+          const rows = await ConversationService.getMessages(id);
+          const messages: ConversationMessage[] = rows.map((r) => ({
+            id: r.id,
+            type: r.type,
+            content: r.content,
+            timestamp: new Date(r.created_at),
+            action: r.action ? (r.action as unknown as BlockchainAction) : undefined,
+            requiresConfirmation: r.requires_confirmation || false,
+            status: (r.status as ConversationMessage['status']) || undefined,
+          }));
+          // If empty, show welcome
+          if (messages.length === 0) {
+            messages.push({ ...WELCOME_MESSAGE, timestamp: new Date() });
+          }
+          set({
+            activeConversationId: id,
+            messages,
+            pendingAction: null,
+            isProcessing: false,
+            isLoadingHistory: false,
+            _titleGenerated: true, // existing conversations already have titles
+          });
+        } catch (err) {
+          console.warn('[ConversationStore] selectConversation failed:', err);
+          set({ isLoadingHistory: false });
+        }
+      },
+
+      startNewConversation: async () => {
+        try {
+          const row = await ConversationService.createConversation('New Chat');
+          const summary: ConversationSummary = {
+            id: row.id,
+            title: row.title,
+            updatedAt: new Date(row.updated_at),
+          };
+          set((state) => ({
+            conversations: [summary, ...state.conversations],
+            activeConversationId: row.id,
+            messages: [{ ...WELCOME_MESSAGE, timestamp: new Date() }],
+            pendingAction: null,
+            isProcessing: false,
+            _titleGenerated: false,
+          }));
+        } catch (err) {
+          console.warn('[ConversationStore] startNewConversation failed:', err);
+          // Fallback: just reset messages locally
+          set({
+            activeConversationId: null,
+            messages: [{ ...WELCOME_MESSAGE, timestamp: new Date() }],
+            pendingAction: null,
+            isProcessing: false,
+            _titleGenerated: false,
+          });
+        }
+      },
+
+      deleteConversation: async (id: string) => {
+        try {
+          await ConversationService.deleteConversation(id);
+          const state = get();
+          const remaining = state.conversations.filter((c) => c.id !== id);
+          set({ conversations: remaining });
+
+          // If we deleted the active conversation, switch
+          if (state.activeConversationId === id) {
+            if (remaining.length > 0) {
+              // Select the most recent remaining
+              await get().selectConversation(remaining[0].id);
+            } else {
+              // No conversations left — start fresh
+              await get().startNewConversation();
+            }
+          }
+        } catch (err) {
+          console.warn('[ConversationStore] deleteConversation failed:', err);
+        }
+      },
+
+      setHistoryPanelOpen: (open: boolean) => {
+        set({ historyPanelOpen: open });
+      },
+
+      persistMessage: async (message: ConversationMessage) => {
+        const state = get();
+        if (!state.activeConversationId) return;
+
+        try {
+          await ConversationService.addMessage(state.activeConversationId, {
+            type: message.type,
+            content: message.content,
+            action: message.action as Record<string, unknown> | undefined,
+            requires_confirmation: message.requiresConfirmation || false,
+            status: message.status || null,
+          });
+
+          // Update local updatedAt so history panel stays in sync
+          set((s) => ({
+            conversations: s.conversations.map((c) =>
+              c.id === s.activeConversationId
+                ? { ...c, updatedAt: new Date() }
+                : c
+            ),
+          }));
+
+          // Auto-title: on first user message for a new conversation
+          if (message.type === 'user' && !state._titleGenerated) {
+            const title = ConversationService.generateTitle(message.content);
+            await ConversationService.updateConversationTitle(
+              state.activeConversationId,
+              title
+            );
+            set((s) => ({
+              _titleGenerated: true,
+              conversations: s.conversations.map((c) =>
+                c.id === s.activeConversationId
+                  ? { ...c, title }
+                  : c
+              ),
+            }));
+          }
+        } catch (err) {
+          console.warn('[ConversationStore] persistMessage failed:', err);
+        }
+      },
+
+      // ── Original actions (preserved) ──
 
       addMessage: (message) => {
         const newMessage: ConversationMessage = {
@@ -59,6 +237,9 @@ export const useConversationStore = create<ConversationState>()(
         set((state) => ({
           messages: [...state.messages, newMessage]
         }));
+
+        // Persist in background (fire-and-forget)
+        get().persistMessage(newMessage);
       },
 
       updateMessage: (id, updates) => {
@@ -78,18 +259,8 @@ export const useConversationStore = create<ConversationState>()(
       },
 
       clearConversation: () => {
-        set({
-          messages: [
-            {
-              id: 'welcome',
-              type: 'ai',
-              content: 'Hello! I\'m your opBNB Chain Agent. I can help you:\n\n◎ Create BEP-20 tokens\n■ Mint NFTs with Lighthouse IPFS storage\n⚡ Send BNB transactions\n🎓 Issue & verify blockchain certificates\n◆ Check balances and transaction history\n\nJust tell me what you\'d like to do in natural language!',
-              timestamp: new Date()
-            }
-          ],
-          pendingAction: null,
-          isProcessing: false
-        });
+        // Start a new conversation instead of just wiping
+        get().startNewConversation();
       },
 
       confirmAction: async () => {
@@ -218,6 +389,9 @@ export const useConversationStore = create<ConversationState>()(
             pendingAction: null,
             isProcessing: false
           }));
+
+          // Persist the result message
+          get().persistMessage(successMessage);
         } catch (error: any) {
           console.error('Action execution failed:', error);
           
@@ -234,6 +408,8 @@ export const useConversationStore = create<ConversationState>()(
             pendingAction: null,
             isProcessing: false
           }));
+
+          get().persistMessage(errorMessage);
         }
       },
 
@@ -246,13 +422,14 @@ export const useConversationStore = create<ConversationState>()(
       partialize: (state) => ({
         messages: state.messages.slice(-50).map(msg => ({
           ...msg,
-          timestamp: msg.timestamp.toISOString() // Convert Date to string for storage
-        }))
+          timestamp: msg.timestamp.toISOString()
+        })),
+        activeConversationId: state.activeConversationId,
+        _titleGenerated: state._titleGenerated,
       }),
       merge: (persistedState, currentState) => {
         const persisted = persistedState as any;
         if (persisted?.messages) {
-          // Convert timestamp strings back to Date objects
           persisted.messages = persisted.messages.map((msg: any) => ({
             ...msg,
             timestamp: new Date(msg.timestamp)

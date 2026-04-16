@@ -1,12 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { IoTrash, IoArrowForward, IoSparkles, IoWallet, IoImage, IoCube, IoSend } from 'react-icons/io5';
-import { Users, Bot, Zap } from 'lucide-react';
+import { Users, Bot, Zap, History, Plus } from 'lucide-react';
 import { useConversationStore } from '../../store/conversationStore';
 import { geminiAI } from '../../services/geminiAI';
 import { UploadButton, ImagePreview } from '../UploadButton';
 import MessageRenderer from '../MessageRenderer';
 import { ContactsModal } from './ContactsModal';
+import ChatHistoryPanel from './ChatHistoryPanel';
 
 const AIChat: React.FC = () => {
   const { 
@@ -18,7 +19,17 @@ const AIChat: React.FC = () => {
     setProcessing,
     confirmAction,
     rejectAction,
-    clearConversation
+    clearConversation,
+    // Chat history
+    conversations,
+    activeConversationId,
+    isLoadingHistory,
+    historyPanelOpen,
+    loadConversations,
+    selectConversation,
+    startNewConversation,
+    deleteConversation,
+    setHistoryPanelOpen,
   } = useConversationStore();
   
   const [inputValue, setInputValue] = useState('');
@@ -26,7 +37,28 @@ const AIChat: React.FC = () => {
   const [isWaitingForNFTDetails, setIsWaitingForNFTDetails] = useState(false);
   const [pendingNFTDetails, setPendingNFTDetails] = useState<{name?: string, description?: string} | null>(null);
   const [isContactsModalOpen, setIsContactsModalOpen] = useState(false);
+  const [historyInitialized, setHistoryInitialized] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Load chat history on mount
+  useEffect(() => {
+    if (!historyInitialized) {
+      setHistoryInitialized(true);
+      loadConversations().then(() => {
+        const state = useConversationStore.getState();
+        // Validate that the persisted activeConversationId still exists
+        // (handles: deleted conversation, different user signed in, first visit)
+        const hasValidActive = state.activeConversationId &&
+          state.conversations.some((c) => c.id === state.activeConversationId);
+
+        if (!hasValidActive && state.conversations.length === 0) {
+          startNewConversation();
+        } else if (!hasValidActive && state.conversations.length > 0) {
+          selectConversation(state.conversations[0].id);
+        }
+      });
+    }
+  }, [historyInitialized, loadConversations, startNewConversation, selectConversation]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -380,9 +412,28 @@ Please try again with a different image or check your internet connection.`,
 
   return (
     <>
+      {/* Chat History Panel */}
+      <ChatHistoryPanel
+        isOpen={historyPanelOpen}
+        onClose={() => setHistoryPanelOpen(false)}
+        conversations={conversations}
+        activeConversationId={activeConversationId}
+        isLoading={isLoadingHistory}
+        onSelectConversation={(id) => selectConversation(id)}
+        onNewConversation={() => startNewConversation()}
+        onDeleteConversation={(id) => deleteConversation(id)}
+      />
+
       {/* ── Premium Chat Header ── */}
       <div className="chat-header">
         <div className="chat-title">
+          <button
+            className="chat-action-btn chat-action-btn--history"
+            onClick={() => setHistoryPanelOpen(true)}
+            title="Chat History"
+          >
+            <History size={15} />
+          </button>
           <div className="chat-header-avatar">
             <Bot size={16} />
             <span className="chat-header-pulse" />
@@ -402,6 +453,13 @@ Please try again with a different image or check your internet connection.`,
           >
             <Users size={14} />
             <span>Contacts</span>
+          </button>
+          <button
+            className="chat-action-btn"
+            onClick={() => startNewConversation()}
+          >
+            <Plus size={14} />
+            <span>New Chat</span>
           </button>
           <button
             className="chat-action-btn chat-action-btn--danger"
