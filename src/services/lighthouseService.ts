@@ -102,7 +102,7 @@ export class LighthouseService {
         };
       }
 
-      const ipfsUrl = `https://gateway.lighthouse.storage/ipfs/${ipfsHash}`;
+      const ipfsUrl = `${this.IPFS_GATEWAYS[0]}${ipfsHash}`;
 
       console.log('🎉 Image uploaded successfully!');
       console.log('🌐 URL:', ipfsUrl);
@@ -162,7 +162,7 @@ export class LighthouseService {
         };
       }
 
-      const ipfsUrl = `https://gateway.lighthouse.storage/ipfs/${ipfsHash}`;
+      const ipfsUrl = `${this.IPFS_GATEWAYS[0]}${ipfsHash}`;
 
       console.log('🎉 Metadata uploaded! URL:', ipfsUrl);
 
@@ -205,7 +205,7 @@ export class LighthouseService {
    */
   static async checkUploadStatus(ipfsHash: string) {
     try {
-      const url = `https://gateway.lighthouse.storage/ipfs/${ipfsHash}`;
+      const url = `${this.IPFS_GATEWAYS[0]}${ipfsHash}`;
       const response = await fetch(url, { method: 'HEAD' });
       
       return {
@@ -218,7 +218,7 @@ export class LighthouseService {
       return {
         available: false,
         status: 0,
-        url: `https://gateway.lighthouse.storage/ipfs/${ipfsHash}`
+        url: `${this.IPFS_GATEWAYS[0]}${ipfsHash}`
       };
     }
   }
@@ -228,8 +228,9 @@ export class LighthouseService {
    * Lighthouse first (the upload target), then Cloudflare as fallback.
    */
   static readonly IPFS_GATEWAYS = [
-    'https://gateway.lighthouse.storage/ipfs/',
-    'https://cf-ipfs.com/ipfs/',
+    'https://dweb.link/ipfs/',
+    'https://w3s.link/ipfs/',
+    'https://ipfs.io/ipfs/',
   ];
 
   /**

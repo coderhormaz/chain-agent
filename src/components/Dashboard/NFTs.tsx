@@ -64,7 +64,7 @@ const NFTs: React.FC = () => {
             description: nft.metadata?.description || 'No description',
             image: nft.metadata?.image
               ? LighthouseService.ipfsToHttp(nft.metadata.image)
-              : 'https://via.placeholder.com/300x300?text=NFT',
+              : 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMzAwIiBoZWlnaHQ9IjMwMCIgZmlsbD0iIzFhMWEyZSIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNiIgZmlsbD0iIzY2NiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPk5GVDwvdGV4dD48L3N2Zz4=',
             contractAddress: import.meta.env.VITE_NFT_FACTORY_CONTRACT || '0x...',
             tokenId: nft.tokenId,
             metadata: {
@@ -174,7 +174,7 @@ const NFTs: React.FC = () => {
         id: mintResult.tokenId || Date.now().toString(),
         name: formData.name,
         description: formData.description,
-        image: imageUrl || 'https://via.placeholder.com/300x300?text=NFT',
+        image: imageUrl || 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMzAwIiBoZWlnaHQ9IjMwMCIgZmlsbD0iIzFhMWEyZSIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNiIgZmlsbD0iIzY2NiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPk5GVDwvdGV4dD48L3N2Zz4=',
         contractAddress: import.meta.env.VITE_NFT_FACTORY_CONTRACT || '0x...',
         tokenId: mintResult.tokenId || '0',
         metadata: {
