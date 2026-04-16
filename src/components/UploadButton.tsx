@@ -5,7 +5,7 @@ import { LighthouseService } from '../services/lighthouseService';
 
 interface UploadButtonProps {
   onUploadStart?: () => void;
-  onUploadComplete?: (url: string, fileName: string) => void;
+  onUploadComplete?: (url: string, fileName: string, ipfsHash?: string) => void;
   onUploadError?: (error: string) => void;
   hasUploaded?: boolean;
 }
@@ -60,7 +60,9 @@ export const UploadButton: React.FC<UploadButtonProps> = ({
 
       if (result.success && result.url) {
         setUploadComplete(true);
-        onUploadComplete?.(result.url, file.name);
+        // Use a local blob URL for immediate display (IPFS gateways may be slow/down)
+        const blobUrl = URL.createObjectURL(file);
+        onUploadComplete?.(blobUrl, file.name, result.ipfsHash);
       } else {
         throw new Error(result.error || 'Upload failed');
       }

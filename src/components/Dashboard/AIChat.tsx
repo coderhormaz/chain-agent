@@ -33,7 +33,7 @@ const AIChat: React.FC = () => {
   } = useConversationStore();
   
   const [inputValue, setInputValue] = useState('');
-  const [uploadedImage, setUploadedImage] = useState<{url: string, fileName: string} | null>(null);
+  const [uploadedImage, setUploadedImage] = useState<{url: string, fileName: string, ipfsUrl?: string} | null>(null);
   const [isWaitingForNFTDetails, setIsWaitingForNFTDetails] = useState(false);
   const [pendingNFTDetails, setPendingNFTDetails] = useState<{name?: string, description?: string} | null>(null);
   const [isContactsModalOpen, setIsContactsModalOpen] = useState(false);
@@ -217,8 +217,10 @@ No problem! The action has been cancelled. Is there something else I can help yo
   };
 
   // Handle image upload completion
-  const handleUploadComplete = async (url: string, fileName: string) => {
-    setUploadedImage({ url, fileName });
+  const handleUploadComplete = async (url: string, fileName: string, ipfsHash?: string) => {
+    // url is a local blob URL for display; ipfsHash is needed for blockchain
+    const ipfsUrl = ipfsHash ? `https://dweb.link/ipfs/${ipfsHash}` : url;
+    setUploadedImage({ url, fileName, ipfsUrl });
     
     // Mark the upload message as completed
     const uploadMessage = messages.find(msg => msg.showUpload && !msg.hasUploaded);
@@ -239,7 +241,7 @@ No problem! The action has been cancelled. Is there something else I can help yo
         details: {
           name: name,
           description: description,
-          imageUrl: url,
+          imageUrl: ipfsUrl,
           attributes: []
         },
         missingFields: [],
@@ -373,7 +375,7 @@ Please try again with a different image or check your internet connection.`,
         details: {
           name: name,
           description: description || `NFT created with opBNB AI Assistant`,
-          imageUrl: uploadedImage.url,
+          imageUrl: uploadedImage.ipfsUrl || uploadedImage.url,
           attributes: []
         },
         missingFields: [],
