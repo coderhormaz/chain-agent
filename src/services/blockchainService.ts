@@ -21,7 +21,8 @@ const SIMPLE_NFT_COLLECTION_ABI = [
   "function ownerOf(uint256 tokenId) external view returns (address)",
   "function tokenURI(uint256 tokenId) external view returns (string memory)",
   "function name() external view returns (string)",
-  "function symbol() external view returns (string)"
+  "function symbol() external view returns (string)",
+  "event NFTMinted(uint256 indexed tokenId, address indexed creator, string uri)"
 ];
 
 const ERC20_ABI = [
@@ -188,12 +189,16 @@ export class BlockchainService {
         if (!nftDetails.imageUrl.startsWith('http')) {
           throw new Error('Invalid image URL. Image must be uploaded to IPFS first.');
         }
-        // Convert gateway URL to ipfs:// protocol so block explorers can resolve it
-        const ipfsImage = nftDetails.imageUrl.includes('/ipfs/')
-          ? 'ipfs://' + nftDetails.imageUrl.split('/ipfs/')[1]
-          : nftDetails.imageUrl;
-        metadata.image = ipfsImage;
-        metadata.external_url = ipfsImage;
+        // Store both ipfs:// (for on-chain standard) and HTTPS gateway URL (for explorers)
+        if (nftDetails.imageUrl.includes('/ipfs/')) {
+          const cid = nftDetails.imageUrl.split('/ipfs/')[1];
+          metadata.image = 'ipfs://' + cid;
+          // external_url as HTTPS so block explorers can render the image directly
+          metadata.external_url = 'https://gateway.lighthouse.storage/ipfs/' + cid;
+        } else {
+          metadata.image = nftDetails.imageUrl;
+          metadata.external_url = nftDetails.imageUrl;
+        }
       }
 
       console.log('🎨 Minting to shared NFT collection...');
@@ -587,6 +592,7 @@ export class BlockchainService {
     tokenURI: string;
     owner: string;
     creator: string;
+    createdAt?: Date;
     metadata?: {
       name?: string;
       description?: string;
@@ -616,55 +622,107 @@ export class BlockchainService {
         return [];
       }
 
-      // Load cached metadata from Supabase (best-effort; non-blocking if not signed in)
-      let cachedMetadata = new Map<string, any>();
-      try {
-        const { NFTMetadataService } = await import('./nftMetadataService');
-        cachedMetadata = await NFTMetadataService.getMetadataByUser();
-        console.log(`📦 Loaded ${cachedMetadata.size} cached NFT metadata entries from Supabase`);
-      } catch (cacheErr) {
-        console.warn('⚠️ Could not load cached NFT metadata:', cacheErr);
-      }
+      // Kick off event timestamps + Supabase cache in parallel (non-blocking)
+      // These run alongside NFT detail fetches so they don't add sequential delay.
+      const mintTimestampsPromise = (async () => {
+        const map = new Map<string, Date>();
+        try {
+          const mintFilter = contract.filters.NFTMinted(null, userAddress);
+          const events = await Promise.race([
+            contract.queryFilter(mintFilter),
+            new Promise<any[]>(resolve => setTimeout(() => resolve([]), 5000)) // 5s cap
+          ]);
+          // Deduplicate block numbers to minimize RPC calls
+          const blockNumbers = new Set<number>();
+          const eventsByBlock = new Map<number, Array<{ tokenId: string }>>();
+          for (const event of events) {
+            const tokenIdStr = event.args?.[0]?.toString();
+            if (tokenIdStr && event.blockNumber != null) {
+              blockNumbers.add(event.blockNumber);
+              const list = eventsByBlock.get(event.blockNumber) || [];
+              list.push({ tokenId: tokenIdStr });
+              eventsByBlock.set(event.blockNumber, list);
+            }
+          }
+          // Fetch unique blocks in parallel (not per-event)
+          const blockEntries = [...blockNumbers];
+          const blocks = await Promise.all(
+            blockEntries.map(bn =>
+              provider.getBlock(bn).catch(() => null)
+            )
+          );
+          for (let i = 0; i < blockEntries.length; i++) {
+            const block = blocks[i];
+            if (block) {
+              const evts = eventsByBlock.get(blockEntries[i]) || [];
+              for (const evt of evts) {
+                map.set(evt.tokenId, new Date(block.timestamp * 1000));
+              }
+            }
+          }
+          console.log(`⏰ Fetched ${map.size} mint timestamps`);
+        } catch (e) {
+          console.warn('⚠️ Could not fetch mint timestamps:', e);
+        }
+        return map;
+      })();
 
+      const cachedMetadataPromise = (async () => {
+        try {
+          const { NFTMetadataService } = await import('./nftMetadataService');
+          const data = await NFTMetadataService.getMetadataByUser();
+          console.log(`📦 Loaded ${data.size} cached NFT metadata entries from Supabase`);
+          return data;
+        } catch (cacheErr) {
+          console.warn('⚠️ Could not load cached NFT metadata:', cacheErr);
+          return new Map<string, any>();
+        }
+      })();
+
+      // Wait for cache first (fast — single DB query), timestamps can arrive later
+      const cachedMetadata = await cachedMetadataPromise;
       const contractAddr = (addresses.nftFactory || '').toLowerCase();
 
       // Fetch details for each NFT
       const nftDetailsPromises = tokenIds.map(async (tokenId: bigint) => {
         try {
           const tokenIdStr = tokenId.toString();
-          
-          // Check if token still exists
-          const exists = await contract.exists(tokenId);
-          if (!exists) {
-            console.log(`Token ${tokenIdStr} no longer exists`);
+
+          // Batch all RPC reads into one Promise.all — skip separate exists() call.
+          // If the token was burned, these calls will revert and we catch below.
+          let tokenURI: string, owner: string, creator: string;
+          try {
+            [tokenURI, owner, creator] = await Promise.all([
+              contract.tokenURI(tokenId),
+              contract.ownerOf(tokenId),
+              contract.nftCreator(tokenId)
+            ]);
+          } catch {
+            // Token likely burned or doesn't exist
+            console.log(`Token ${tokenIdStr} no longer exists or is inaccessible`);
             return null;
           }
 
-          // Use SimpleNFTCollection functions: tokenURI, ownerOf, nftCreator
-          const [tokenURI, owner, creator] = await Promise.all([
-            contract.tokenURI(tokenId),
-            contract.ownerOf(tokenId),
-            contract.nftCreator(tokenId)
-          ]);
-
-          // 1. Try Supabase cache first
+          // 1. Try Supabase cache first (instant, no network)
           const cacheKey = `${contractAddr}:${tokenIdStr}`;
           const cached = cachedMetadata.get(cacheKey);
           if (cached?.metadata_json) {
             console.log(`✅ Using cached metadata for token ${tokenIdStr}`);
+            // Timestamps may still be loading — attach them later
             return {
               tokenId: tokenIdStr,
               tokenURI,
               owner,
               creator,
-              metadata: cached.metadata_json
+              createdAt: cached.created_at ? new Date(cached.created_at) : undefined,
+              metadata: cached.metadata_json,
+              _needsTimestamp: true
             };
           }
 
-          // 2. Parse metadata from tokenURI (with fallback gateways)
+          // 2. Parse metadata from tokenURI (with tight timeouts)
           let metadata;
           if (tokenURI.startsWith('data:application/json;base64,')) {
-            // Base64 encoded metadata
             try {
               const base64Data = tokenURI.split(',')[1];
               const jsonString = atob(base64Data);
@@ -673,13 +731,12 @@ export class BlockchainService {
               console.error(`Failed to parse base64 metadata for token ${tokenIdStr}:`, e);
             }
           } else if (tokenURI.startsWith('ipfs://')) {
-            // Use fallback gateway fetcher with a tight timeout so we don't block the UI
             const ipfsHash = tokenURI.slice(7);
             try {
               const { LighthouseService } = await import('./lighthouseService');
               const response = await Promise.race([
-                LighthouseService.fetchFromIPFS(ipfsHash, 3000),
-                new Promise<null>(resolve => setTimeout(() => resolve(null), 6000))
+                LighthouseService.fetchFromIPFS(ipfsHash, 2000),
+                new Promise<null>(resolve => setTimeout(() => resolve(null), 4000))
               ]);
               if (response) {
                 const text = await response.text();
@@ -691,24 +748,20 @@ export class BlockchainService {
               console.error(`Failed to fetch/parse metadata for token ${tokenIdStr}:`, e);
             }
           } else if (tokenURI.startsWith('http')) {
-            // Legacy HTTP URL — fetch directly
             try {
-              const response = await fetch(tokenURI, { signal: AbortSignal.timeout(10000) });
+              const response = await fetch(tokenURI, { signal: AbortSignal.timeout(5000) });
               if (response.ok) {
                 const text = await response.text();
                 metadata = JSON.parse(text);
-              } else {
-                console.error(`Failed to fetch metadata for token ${tokenIdStr}: HTTP ${response.status}`);
               }
             } catch (e) {
               console.error(`Failed to fetch/parse metadata for token ${tokenIdStr}:`, e);
             }
           }
 
-          // 3. Opportunistically cache successful IPFS fetches to Supabase
+          // 3. Opportunistically cache successful IPFS fetches to Supabase (fire-and-forget)
           if (metadata && !cached) {
-            try {
-              const { NFTMetadataService } = await import('./nftMetadataService');
+            import('./nftMetadataService').then(({ NFTMetadataService }) => {
               NFTMetadataService.saveMetadata({
                 token_id: tokenIdStr,
                 contract_address: contractAddr,
@@ -718,8 +771,8 @@ export class BlockchainService {
                   ? metadata.image.slice(7)
                   : undefined,
                 metadata_json: metadata,
-              }).catch(e => console.warn('Opportunistic cache failed (non-fatal):', e));
-            } catch (_) { /* ignore */ }
+              }).catch(() => {});
+            }).catch(() => {});
           }
 
           return {
@@ -727,7 +780,8 @@ export class BlockchainService {
             tokenURI,
             owner,
             creator,
-            metadata
+            metadata,
+            _needsTimestamp: true
           };
         } catch (error) {
           console.error(`Failed to fetch details for token ${tokenId.toString()}:`, error);
@@ -737,6 +791,19 @@ export class BlockchainService {
 
       const nfts = await Promise.all(nftDetailsPromises);
       const validNFTs = nfts.filter((nft): nft is NonNullable<typeof nft> => nft !== null);
+
+      // Now attach timestamps (they've been loading in parallel)
+      const mintTimestamps = await Promise.race([
+        mintTimestampsPromise,
+        new Promise<Map<string, Date>>(resolve => setTimeout(() => resolve(new Map()), 2000))
+      ]);
+      for (const nft of validNFTs) {
+        if ((nft as any)._needsTimestamp) {
+          const ts = mintTimestamps.get(nft.tokenId);
+          if (ts) nft.createdAt = ts;
+          delete (nft as any)._needsTimestamp;
+        }
+      }
       
       console.log(`✅ Successfully fetched ${validNFTs.length} NFT details`);
       return validNFTs;

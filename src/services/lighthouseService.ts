@@ -224,10 +224,12 @@ export class LighthouseService {
   }
 
   /**
-   * Ordered list of IPFS gateways to try when fetching content.
-   * Lighthouse first (the upload target), then Cloudflare as fallback.
+   * Ordered list of IPFS gateways.
+   * Lighthouse is first because <img> tags can load from it (no CORS).
+   * fetch() calls will get a CORS error from Lighthouse and fall through to the others.
    */
   static readonly IPFS_GATEWAYS = [
+    'https://gateway.lighthouse.storage/ipfs/',
     'https://dweb.link/ipfs/',
     'https://w3s.link/ipfs/',
     'https://ipfs.io/ipfs/',
@@ -257,28 +259,43 @@ export class LighthouseService {
   }
 
   /**
+   * Gateways suitable for programmatic fetch() calls.
+   * Lighthouse gateway is excluded because it returns 402 for fetch()
+   * (CORS/payment issue) — it only works for <img> tags.
+   */
+  private static readonly FETCH_GATEWAYS = [
+    'https://dweb.link/ipfs/',
+    'https://w3s.link/ipfs/',
+    'https://ipfs.io/ipfs/',
+  ];
+
+  /**
    * Fetch content from IPFS, trying each gateway in order until one succeeds.
+   * Skips Lighthouse gateway (returns 402 for fetch, only works for img tags).
    * @param ipfsHash - The IPFS CID (without ipfs:// prefix)
-   * @param timeoutMs - Per-gateway timeout in milliseconds (default 8000)
+   * @param timeoutMs - Per-gateway timeout in milliseconds (default 2000)
    * @returns The Response from the first successful gateway, or null if all fail
    */
-  static async fetchFromIPFS(ipfsHash: string, timeoutMs = 4000): Promise<Response | null> {
-    for (const gateway of this.IPFS_GATEWAYS) {
-      const url = gateway + ipfsHash;
-      try {
-        console.log(`🌐 Trying IPFS gateway: ${url}`);
-        const response = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
-        if (response.ok) {
+  static async fetchFromIPFS(ipfsHash: string, timeoutMs = 2000): Promise<Response | null> {
+    // Try all fetch-compatible gateways in parallel, return first success
+    const controllers = this.FETCH_GATEWAYS.map(() => new AbortController());
+    try {
+      const result = await Promise.any(
+        this.FETCH_GATEWAYS.map(async (gateway, i) => {
+          const url = gateway + ipfsHash;
+          const response = await fetch(url, { signal: AbortSignal.any([AbortSignal.timeout(timeoutMs), controllers[i].signal]) });
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
           console.log(`✅ IPFS fetch succeeded from: ${gateway}`);
           return response;
-        }
-        console.warn(`⚠️ Gateway ${gateway} returned HTTP ${response.status}`);
-      } catch (e) {
-        console.warn(`⚠️ Gateway ${gateway} failed:`, e);
-      }
+        })
+      );
+      // Cancel remaining fetches
+      controllers.forEach(c => c.abort());
+      return result;
+    } catch {
+      console.warn(`⚠️ All IPFS gateways failed for hash: ${ipfsHash}`);
+      return null;
     }
-    console.error(`❌ All IPFS gateways failed for hash: ${ipfsHash}`);
-    return null;
   }
 }
 

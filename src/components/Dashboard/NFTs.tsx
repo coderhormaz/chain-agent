@@ -47,7 +47,11 @@ const NFTs: React.FC = () => {
       setIsLoading(true);
       try {
         console.log('Fetching NFTs for address:', wallet.address);
-        const userNFTs = await BlockchainService.getUserNFTs(wallet.address);
+        // Overall 12s safety timeout so page never hangs indefinitely
+        const userNFTs = await Promise.race([
+          BlockchainService.getUserNFTs(wallet.address),
+          new Promise<never>((_, reject) => setTimeout(() => reject(new Error('NFT fetch timeout')), 12000))
+        ]);
         
         // Convert blockchain NFTs to component NFT format
         const formattedNFTs: NFT[] = userNFTs.map(nft => {
@@ -70,7 +74,7 @@ const NFTs: React.FC = () => {
             metadata: {
               attributes: nft.metadata?.attributes || []
             },
-            createdAt: new Date() // We don't have exact creation date from chain
+            createdAt: nft.createdAt || new Date()
           };
         });
 
