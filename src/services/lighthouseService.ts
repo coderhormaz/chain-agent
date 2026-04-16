@@ -262,7 +262,7 @@ export class LighthouseService {
    * @param timeoutMs - Per-gateway timeout in milliseconds (default 8000)
    * @returns The Response from the first successful gateway, or null if all fail
    */
-  static async fetchFromIPFS(ipfsHash: string, timeoutMs = 8000): Promise<Response | null> {
+  static async fetchFromIPFS(ipfsHash: string, timeoutMs = 4000): Promise<Response | null> {
     for (const gateway of this.IPFS_GATEWAYS) {
       const url = gateway + ipfsHash;
       try {

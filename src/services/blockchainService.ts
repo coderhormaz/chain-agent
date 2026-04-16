@@ -673,16 +673,19 @@ export class BlockchainService {
               console.error(`Failed to parse base64 metadata for token ${tokenIdStr}:`, e);
             }
           } else if (tokenURI.startsWith('ipfs://')) {
-            // Use fallback gateway fetcher
+            // Use fallback gateway fetcher with a tight timeout so we don't block the UI
             const ipfsHash = tokenURI.slice(7);
             try {
               const { LighthouseService } = await import('./lighthouseService');
-              const response = await LighthouseService.fetchFromIPFS(ipfsHash);
+              const response = await Promise.race([
+                LighthouseService.fetchFromIPFS(ipfsHash, 3000),
+                new Promise<null>(resolve => setTimeout(() => resolve(null), 6000))
+              ]);
               if (response) {
                 const text = await response.text();
                 metadata = JSON.parse(text);
               } else {
-                console.error(`All gateways failed for token ${tokenIdStr} metadata`);
+                console.warn(`Gateway timeout for token ${tokenIdStr} — will show without metadata`);
               }
             } catch (e) {
               console.error(`Failed to fetch/parse metadata for token ${tokenIdStr}:`, e);
