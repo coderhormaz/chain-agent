@@ -616,6 +616,18 @@ export class BlockchainService {
         return [];
       }
 
+      // Load cached metadata from Supabase (best-effort; non-blocking if not signed in)
+      let cachedMetadata = new Map<string, any>();
+      try {
+        const { NFTMetadataService } = await import('./nftMetadataService');
+        cachedMetadata = await NFTMetadataService.getMetadataByUser();
+        console.log(`📦 Loaded ${cachedMetadata.size} cached NFT metadata entries from Supabase`);
+      } catch (cacheErr) {
+        console.warn('⚠️ Could not load cached NFT metadata:', cacheErr);
+      }
+
+      const contractAddr = (addresses.nftFactory || '').toLowerCase();
+
       // Fetch details for each NFT
       const nftDetailsPromises = tokenIds.map(async (tokenId: bigint) => {
         try {
@@ -635,7 +647,21 @@ export class BlockchainService {
             contract.nftCreator(tokenId)
           ]);
 
-          // Parse metadata from tokenURI
+          // 1. Try Supabase cache first
+          const cacheKey = `${contractAddr}:${tokenIdStr}`;
+          const cached = cachedMetadata.get(cacheKey);
+          if (cached?.metadata_json) {
+            console.log(`✅ Using cached metadata for token ${tokenIdStr}`);
+            return {
+              tokenId: tokenIdStr,
+              tokenURI,
+              owner,
+              creator,
+              metadata: cached.metadata_json
+            };
+          }
+
+          // 2. Parse metadata from tokenURI (with fallback gateways)
           let metadata;
           if (tokenURI.startsWith('data:application/json;base64,')) {
             // Base64 encoded metadata
@@ -647,15 +673,16 @@ export class BlockchainService {
               console.error(`Failed to parse base64 metadata for token ${tokenIdStr}:`, e);
             }
           } else if (tokenURI.startsWith('ipfs://')) {
-            // Convert ipfs:// to HTTP gateway URL for fetching
-            const httpUrl = 'https://gateway.lighthouse.storage/ipfs/' + tokenURI.slice(7);
+            // Use fallback gateway fetcher
+            const ipfsHash = tokenURI.slice(7);
             try {
-              const response = await fetch(httpUrl, { signal: AbortSignal.timeout(10000) });
-              if (response.ok) {
+              const { LighthouseService } = await import('./lighthouseService');
+              const response = await LighthouseService.fetchFromIPFS(ipfsHash);
+              if (response) {
                 const text = await response.text();
                 metadata = JSON.parse(text);
               } else {
-                console.error(`Failed to fetch metadata for token ${tokenIdStr}: HTTP ${response.status}`);
+                console.error(`All gateways failed for token ${tokenIdStr} metadata`);
               }
             } catch (e) {
               console.error(`Failed to fetch/parse metadata for token ${tokenIdStr}:`, e);
@@ -673,6 +700,23 @@ export class BlockchainService {
             } catch (e) {
               console.error(`Failed to fetch/parse metadata for token ${tokenIdStr}:`, e);
             }
+          }
+
+          // 3. Opportunistically cache successful IPFS fetches to Supabase
+          if (metadata && !cached) {
+            try {
+              const { NFTMetadataService } = await import('./nftMetadataService');
+              NFTMetadataService.saveMetadata({
+                token_id: tokenIdStr,
+                contract_address: contractAddr,
+                name: metadata.name,
+                description: metadata.description,
+                image_ipfs_hash: metadata.image?.startsWith('ipfs://')
+                  ? metadata.image.slice(7)
+                  : undefined,
+                metadata_json: metadata,
+              }).catch(e => console.warn('Opportunistic cache failed (non-fatal):', e));
+            } catch (_) { /* ignore */ }
           }
 
           return {

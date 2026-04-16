@@ -129,32 +129,15 @@ export const useConversationStore = create<ConversationState>()(
       },
 
       startNewConversation: async () => {
-        try {
-          const row = await ConversationService.createConversation('New Chat');
-          const summary: ConversationSummary = {
-            id: row.id,
-            title: row.title,
-            updatedAt: new Date(row.updated_at),
-          };
-          set((state) => ({
-            conversations: [summary, ...state.conversations],
-            activeConversationId: row.id,
-            messages: [{ ...WELCOME_MESSAGE, timestamp: new Date() }],
-            pendingAction: null,
-            isProcessing: false,
-            _titleGenerated: false,
-          }));
-        } catch (err) {
-          console.warn('[ConversationStore] startNewConversation failed:', err);
-          // Fallback: just reset messages locally
-          set({
-            activeConversationId: null,
-            messages: [{ ...WELCOME_MESSAGE, timestamp: new Date() }],
-            pendingAction: null,
-            isProcessing: false,
-            _titleGenerated: false,
-          });
-        }
+        // Lazy creation: don't create a DB row yet.
+        // The conversation will be created in Supabase when the first message is persisted.
+        set({
+          activeConversationId: null,
+          messages: [{ ...WELCOME_MESSAGE, timestamp: new Date() }],
+          pendingAction: null,
+          isProcessing: false,
+          _titleGenerated: false,
+        });
       },
 
       deleteConversation: async (id: string) => {
@@ -184,10 +167,30 @@ export const useConversationStore = create<ConversationState>()(
       },
 
       persistMessage: async (message: ConversationMessage) => {
-        const state = get();
-        if (!state.activeConversationId) return;
+        let state = get();
 
         try {
+          // Lazy creation: if no active conversation, create one now (first real message)
+          if (!state.activeConversationId) {
+            const title = message.type === 'user'
+              ? ConversationService.generateTitle(message.content)
+              : 'New Chat';
+            const row = await ConversationService.createConversation(title);
+            const summary: ConversationSummary = {
+              id: row.id,
+              title,
+              updatedAt: new Date(row.updated_at),
+            };
+            set((s) => ({
+              activeConversationId: row.id,
+              _titleGenerated: message.type === 'user', // title set from first user msg
+              conversations: [summary, ...s.conversations],
+            }));
+            state = get(); // refresh
+          }
+
+          if (!state.activeConversationId) return;
+
           await ConversationService.addMessage(state.activeConversationId, {
             type: message.type,
             content: message.content,
@@ -299,6 +302,29 @@ export const useConversationStore = create<ConversationState>()(
                 walletState.wallet.address, 
                 privateKey
               );
+              // Fire-and-forget: cache NFT metadata in Supabase
+              if (result.success && result.tokenId) {
+                import('../services/nftMetadataService').then(({ NFTMetadataService }) => {
+                  const details = action.details as any;
+                  NFTMetadataService.saveMetadata({
+                    token_id: result!.tokenId!,
+                    contract_address: (import.meta.env.VITE_NFT_FACTORY_CONTRACT || '').toLowerCase(),
+                    name: details.name,
+                    description: details.description,
+                    image_ipfs_hash: details.imageUrl?.includes('/ipfs/')
+                      ? details.imageUrl.split('/ipfs/')[1]
+                      : undefined,
+                    metadata_json: {
+                      name: details.name,
+                      description: details.description,
+                      image: details.imageUrl?.includes('/ipfs/')
+                        ? 'ipfs://' + details.imageUrl.split('/ipfs/')[1]
+                        : details.imageUrl,
+                      attributes: details.attributes,
+                    },
+                  }).catch(e => console.warn('NFT metadata cache failed (non-fatal):', e));
+                });
+              }
               break;
               
             case 'send_transaction':

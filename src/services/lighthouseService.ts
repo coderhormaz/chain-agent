@@ -222,6 +222,63 @@ export class LighthouseService {
       };
     }
   }
+
+  /**
+   * Ordered list of IPFS gateways to try when fetching content.
+   * Lighthouse first (the upload target), then Cloudflare as fallback.
+   */
+  static readonly IPFS_GATEWAYS = [
+    'https://gateway.lighthouse.storage/ipfs/',
+    'https://cf-ipfs.com/ipfs/',
+  ];
+
+  /**
+   * Convert an ipfs:// URI or bare CID to an HTTP gateway URL,
+   * using the first available gateway from the fallback list.
+   */
+  static ipfsToHttp(ipfsUri: string, gatewayIndex = 0): string {
+    const gateway = this.IPFS_GATEWAYS[gatewayIndex] || this.IPFS_GATEWAYS[0];
+    if (ipfsUri.startsWith('ipfs://')) {
+      return gateway + ipfsUri.slice(7);
+    }
+    if (ipfsUri.startsWith('https://') || ipfsUri.startsWith('http://')) {
+      // Already an HTTP URL — swap its gateway prefix if it's a known IPFS gateway
+      for (const gw of this.IPFS_GATEWAYS) {
+        if (ipfsUri.startsWith(gw)) {
+          const cid = ipfsUri.slice(gw.length);
+          return gateway + cid;
+        }
+      }
+      return ipfsUri; // Unknown HTTP URL, return as-is
+    }
+    // Assume bare CID
+    return gateway + ipfsUri;
+  }
+
+  /**
+   * Fetch content from IPFS, trying each gateway in order until one succeeds.
+   * @param ipfsHash - The IPFS CID (without ipfs:// prefix)
+   * @param timeoutMs - Per-gateway timeout in milliseconds (default 8000)
+   * @returns The Response from the first successful gateway, or null if all fail
+   */
+  static async fetchFromIPFS(ipfsHash: string, timeoutMs = 8000): Promise<Response | null> {
+    for (const gateway of this.IPFS_GATEWAYS) {
+      const url = gateway + ipfsHash;
+      try {
+        console.log(`🌐 Trying IPFS gateway: ${url}`);
+        const response = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
+        if (response.ok) {
+          console.log(`✅ IPFS fetch succeeded from: ${gateway}`);
+          return response;
+        }
+        console.warn(`⚠️ Gateway ${gateway} returned HTTP ${response.status}`);
+      } catch (e) {
+        console.warn(`⚠️ Gateway ${gateway} failed:`, e);
+      }
+    }
+    console.error(`❌ All IPFS gateways failed for hash: ${ipfsHash}`);
+    return null;
+  }
 }
 
 export default LighthouseService;

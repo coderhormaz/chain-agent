@@ -66,9 +66,10 @@ export class ConversationService {
     const userId = this.getCurrentUserId();
     await this.ensureSession();
 
+    // Only return conversations that have at least one message
     const { data, error } = await supabase
       .from('conversations')
-      .select('*')
+      .select('*, conversation_messages(id)')
       .eq('user_id', userId)
       .order('updated_at', { ascending: false });
 
@@ -77,14 +78,17 @@ export class ConversationService {
         await supabase.auth.refreshSession();
         const retry = await supabase
           .from('conversations')
-          .select('*')
+          .select('*, conversation_messages(id)')
           .eq('user_id', userId)
           .order('updated_at', { ascending: false });
-        if (!retry.error) return retry.data || [];
+        if (!retry.error) {
+          return (retry.data || []).filter((c: any) => c.conversation_messages?.length > 0);
+        }
       }
       throw new Error(error.message || 'Failed to fetch conversations');
     }
-    return data || [];
+    // Filter out empty conversations (no messages)
+    return (data || []).filter((c: any) => c.conversation_messages?.length > 0);
   }
 
   static async createConversation(title = 'New Chat'): Promise<ConversationRow> {
@@ -264,14 +268,48 @@ export class ConversationService {
   // ── Auto-title ──
 
   static generateTitle(firstUserMessage: string): string {
-    // Take the first sentence or first 50 chars
-    let title = firstUserMessage.trim();
-    const sentenceEnd = title.search(/[.!?]/);
-    if (sentenceEnd > 0 && sentenceEnd < 60) {
-      title = title.substring(0, sentenceEnd + 1);
-    } else if (title.length > 50) {
-      title = title.substring(0, 50).trimEnd() + '…';
+    const msg = firstUserMessage.trim();
+
+    // Action-aware title detection
+    const patterns: [RegExp, string][] = [
+      [/mint(?:ing)?\s+(?:an?\s+)?nft/i, 'Mint NFT'],
+      [/create\s+(?:a\s+)?token/i, 'Create Token'],
+      [/send\s+([\d.]+)\s*(bnb|tokens?)/i, 'Send $1 $2'],
+      [/transfer/i, 'Transfer'],
+      [/balance/i, 'Check Balance'],
+      [/certificate/i, 'Certificate'],
+      [/swap/i, 'Swap'],
+      [/price|market/i, 'Price Check'],
+    ];
+
+    for (const [regex, prefix] of patterns) {
+      const match = msg.match(regex);
+      if (match) {
+        // If the prefix has capture groups, replace them
+        let title = prefix;
+        for (let i = 1; i < match.length; i++) {
+          title = title.replace(`$${i}`, match[i]);
+        }
+        // Append context from the message if short enough
+        const rest = msg.replace(regex, '').trim();
+        const nameMatch = rest.match(/(?:called|named|name)\s+["']?([\w\s]+)["']?/i);
+        if (nameMatch) {
+          title += `: ${nameMatch[1].trim().substring(0, 25)}`;
+        }
+        return title;
+      }
     }
-    return title;
+
+    // Fallback: first sentence or first 45 chars, cleaned up
+    let title = msg.replace(/^(hey|hi|hello|please|can you|i want to|i'd like to|help me)\s*/i, '');
+    const sentenceEnd = title.search(/[.!?]/);
+    if (sentenceEnd > 0 && sentenceEnd < 55) {
+      title = title.substring(0, sentenceEnd + 1);
+    } else if (title.length > 45) {
+      // Break at last word boundary before 45 chars
+      title = title.substring(0, 45).replace(/\s+\S*$/, '') + '…';
+    }
+    // Capitalize first letter
+    return title.charAt(0).toUpperCase() + title.slice(1);
   }
 }

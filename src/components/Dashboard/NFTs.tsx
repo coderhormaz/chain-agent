@@ -5,6 +5,7 @@ import { useWalletStore } from '../../store/walletStore';
 import { WalletService } from '../../lib/wallet';
 import { BlockchainService } from '../../services/blockchainService';
 import { LighthouseService } from '../../services/lighthouseService';
+import { NFTMetadataService } from '../../services/nftMetadataService';
 
 interface NFT {
   id: string;
@@ -62,9 +63,7 @@ const NFTs: React.FC = () => {
             name: nft.metadata?.name || `NFT #${nft.tokenId}`,
             description: nft.metadata?.description || 'No description',
             image: nft.metadata?.image
-              ? (nft.metadata.image.startsWith('ipfs://')
-                ? 'https://gateway.lighthouse.storage/ipfs/' + nft.metadata.image.slice(7)
-                : nft.metadata.image)
+              ? LighthouseService.ipfsToHttp(nft.metadata.image)
               : 'https://via.placeholder.com/300x300?text=NFT',
             contractAddress: import.meta.env.VITE_NFT_FACTORY_CONTRACT || '0x...',
             tokenId: nft.tokenId,
@@ -185,7 +184,23 @@ const NFTs: React.FC = () => {
       };
       
       setNfts(prev => [newNFT, ...prev]);
-      
+
+      // Fire-and-forget: cache metadata in Supabase so we don't depend on IPFS gateway
+      const contractAddr = import.meta.env.VITE_NFT_FACTORY_CONTRACT || '';
+      NFTMetadataService.saveMetadata({
+        token_id: mintResult.tokenId || '0',
+        contract_address: contractAddr,
+        name: formData.name,
+        description: formData.description,
+        image_ipfs_hash: uploadResult.ipfsHash || undefined,
+        metadata_json: {
+          name: formData.name,
+          description: formData.description,
+          image: uploadResult.ipfsHash ? `ipfs://${uploadResult.ipfsHash}` : undefined,
+          attributes: nftDetails.attributes,
+        },
+      }).catch(e => console.warn('NFT metadata cache failed (non-fatal):', e));
+
       // Success!
       setMintingStage('success');
       setMintingProgress(`NFT minted successfully! Token ID: ${mintResult.tokenId}`);
@@ -295,9 +310,23 @@ const NFTs: React.FC = () => {
                   src={nft.image} 
                   alt={nft.name}
                   onError={(e) => {
-                    console.error('Failed to load NFT image:', nft.image);
-                    e.currentTarget.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iIzMzMyIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTQiIGZpbGw9IiM5OTkiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj5JbWFnZSBub3QgbG9hZGVkPC90ZXh0Pjwvc3ZnPg==';
-                    e.currentTarget.onerror = null;
+                    console.warn('Image load failed, trying fallback gateway:', nft.image);
+                    const img = e.currentTarget;
+                    // Try next IPFS gateway before giving up
+                    const gateways = LighthouseService.IPFS_GATEWAYS;
+                    const currentGw = gateways.find(gw => img.src.includes(gw));
+                    const currentIdx = currentGw ? gateways.indexOf(currentGw) : -1;
+                    if (currentIdx >= 0 && currentIdx < gateways.length - 1) {
+                      const nextGw = gateways[currentIdx + 1];
+                      const cid = img.src.split(currentGw!)[1];
+                      if (cid) {
+                        img.src = nextGw + cid;
+                        return; // Don't clear onerror yet — let it try the next gateway
+                      }
+                    }
+                    // All gateways exhausted — show placeholder
+                    img.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iIzMzMyIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTQiIGZpbGw9IiM5OTkiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj5JbWFnZSBub3QgbG9hZGVkPC90ZXh0Pjwvc3ZnPg==';
+                    img.onerror = null;
                   }}
                   referrerPolicy="no-referrer"
                 />
