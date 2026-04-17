@@ -647,12 +647,12 @@ export class BlockchainService {
       const withTimeout = <T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> =>
         Promise.race([promise, new Promise<T>(resolve => setTimeout(() => resolve(fallback), ms))]);
 
-      // Load Supabase cache (with 3s timeout so a slow DB never blocks the page)
+      // Load Supabase cache (with 5s timeout so a slow DB never blocks the page)
       console.log('📦 Loading Supabase metadata cache...');
       let cachedMetadata = new Map<string, any>();
       try {
         const { NFTMetadataService } = await import('./nftMetadataService');
-        cachedMetadata = await withTimeout(NFTMetadataService.getMetadataByUser(), 3000, new Map());
+        cachedMetadata = await withTimeout(NFTMetadataService.getMetadataByUser(), 5000, new Map());
         console.log(`📦 Loaded ${cachedMetadata.size} cached entries from Supabase`);
       } catch (cacheErr) {
         console.warn('⚠️ Could not load cached NFT metadata:', cacheErr);
@@ -752,8 +752,8 @@ export class BlockchainService {
             try {
               const { LighthouseService } = await import('./lighthouseService');
               const response = await withTimeout(
-                LighthouseService.fetchFromIPFS(ipfsHash, 3000),
-                4000,
+                LighthouseService.fetchFromIPFS(ipfsHash),
+                8000,
                 null
               );
               if (response) {
@@ -765,13 +765,36 @@ export class BlockchainService {
               console.error(`Failed to fetch IPFS metadata for token ${tokenIdStr}:`, e);
             }
           } else if (tokenURI.startsWith('http')) {
-            try {
-              const response = await fetch(tokenURI, { signal: AbortSignal.timeout(4000) });
-              if (response.ok) {
-                metadata = JSON.parse(await response.text());
+            // Check if it's an IPFS gateway URL (e.g. Lighthouse) — extract CID and use fetchFromIPFS
+            // This avoids CORS issues with direct Lighthouse gateway fetch()
+            const ipfsCidMatch = tokenURI.match(/\/ipfs\/([a-zA-Z0-9]+)/);
+            if (ipfsCidMatch) {
+              const cid = ipfsCidMatch[1];
+              console.log(`🔗 HTTP URL is IPFS gateway, extracting CID: ${cid}`);
+              try {
+                const { LighthouseService } = await import('./lighthouseService');
+                const response = await withTimeout(
+                  LighthouseService.fetchFromIPFS(cid),
+                  8000,
+                  null
+                );
+                if (response) {
+                  metadata = JSON.parse(await response.text());
+                } else {
+                  console.warn(`Gateway timeout for token ${tokenIdStr}`);
+                }
+              } catch (e) {
+                console.error(`Failed to fetch IPFS metadata for token ${tokenIdStr}:`, e);
               }
-            } catch (e) {
-              console.error(`Failed to fetch HTTP metadata for token ${tokenIdStr}:`, e);
+            } else {
+              try {
+                const response = await fetch(tokenURI, { signal: AbortSignal.timeout(4000) });
+                if (response.ok) {
+                  metadata = JSON.parse(await response.text());
+                }
+              } catch (e) {
+                console.error(`Failed to fetch HTTP metadata for token ${tokenIdStr}:`, e);
+              }
             }
           }
 

@@ -82,6 +82,17 @@ export class NFTMetadataService {
   static async getMetadataByUser(): Promise<Map<string, NFTMetadataRow>> {
     const map = new Map<string, NFTMetadataRow>();
     try {
+      // Ensure Supabase auth session is ready before querying (RLS needs auth.uid())
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        // Try refreshing the session
+        const { data: { session: refreshed } } = await supabase.auth.refreshSession();
+        if (!refreshed) {
+          console.warn('[NFTMetadataService] No active Supabase session — cache unavailable');
+          return map;
+        }
+      }
+
       const userId = this.getCurrentUserId();
 
       const { data, error } = await supabase

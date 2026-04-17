@@ -230,9 +230,11 @@ export class LighthouseService {
    */
   static readonly IPFS_GATEWAYS = [
     'https://gateway.lighthouse.storage/ipfs/',
+    'https://cloudflare-ipfs.com/ipfs/',
+    'https://ipfs.io/ipfs/',
+    'https://4everland.io/ipfs/',
     'https://dweb.link/ipfs/',
     'https://w3s.link/ipfs/',
-    'https://ipfs.io/ipfs/',
   ];
 
   /**
@@ -260,23 +262,27 @@ export class LighthouseService {
 
   /**
    * Gateways suitable for programmatic fetch() calls.
-   * Lighthouse gateway is excluded because it returns 402 for fetch()
-   * (CORS/payment issue) — it only works for <img> tags.
+   * Lighthouse gateway is excluded because it blocks CORS for fetch()
+   * — it only works for <img> tags and direct browser navigation.
+   * Cloudflare and ipfs.io are the most reliable public gateways.
    */
   private static readonly FETCH_GATEWAYS = [
+    'https://cloudflare-ipfs.com/ipfs/',
+    'https://ipfs.io/ipfs/',
+    'https://4everland.io/ipfs/',
     'https://dweb.link/ipfs/',
     'https://w3s.link/ipfs/',
-    'https://ipfs.io/ipfs/',
   ];
 
   /**
    * Fetch content from IPFS, trying each gateway in order until one succeeds.
-   * Skips Lighthouse gateway (returns 402 for fetch, only works for img tags).
+   * Skips Lighthouse gateway (blocks CORS for fetch, only works for img tags).
+   * Uses Promise.any to race all gateways — first successful response wins.
    * @param ipfsHash - The IPFS CID (without ipfs:// prefix)
-   * @param timeoutMs - Per-gateway timeout in milliseconds (default 2000)
+   * @param timeoutMs - Per-gateway timeout in milliseconds (default 5000)
    * @returns The Response from the first successful gateway, or null if all fail
    */
-  static async fetchFromIPFS(ipfsHash: string, timeoutMs = 2000): Promise<Response | null> {
+  static async fetchFromIPFS(ipfsHash: string, timeoutMs = 5000): Promise<Response | null> {
     // Try all fetch-compatible gateways in parallel, return first success
     const controllers = this.FETCH_GATEWAYS.map(() => new AbortController());
     try {

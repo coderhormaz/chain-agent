@@ -50,10 +50,10 @@ const NFTs: React.FC = () => {
       setFetchError(false);
       try {
         console.log('Fetching NFTs for address:', wallet.address);
-        // Overall 30s safety timeout so page never hangs indefinitely
+        // Overall 45s safety timeout so page never hangs indefinitely
         const userNFTs = await Promise.race([
           BlockchainService.getUserNFTs(wallet.address),
-          new Promise<never>((_, reject) => setTimeout(() => reject(new Error('NFT fetch timeout')), 30000))
+          new Promise<never>((_, reject) => setTimeout(() => reject(new Error('NFT fetch timeout')), 45000))
         ]);
         
         // Convert blockchain NFTs to component NFT format
