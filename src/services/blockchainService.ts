@@ -614,6 +614,7 @@ export class BlockchainService {
     owner: string;
     creator: string;
     createdAt?: Date;
+    image_url?: string;
     metadata?: {
       name?: string;
       description?: string;
@@ -705,6 +706,7 @@ export class BlockchainService {
               owner: owner || userAddress,
               creator: creator || userAddress,
               createdAt: cached.created_at ? new Date(cached.created_at) : new Date(),
+              image_url: cached.image_url || undefined,
               metadata: cached.metadata_json,
             });
             continue;

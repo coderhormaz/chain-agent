@@ -10,6 +10,7 @@ export interface NFTMetadataRow {
   name: string | null;
   description: string | null;
   image_ipfs_hash: string | null;
+  image_url: string | null;
   metadata_ipfs_hash: string | null;
   metadata_json: Record<string, any> | null;
   created_at: string;
@@ -21,6 +22,7 @@ export interface SaveNFTMetadataData {
   name?: string;
   description?: string;
   image_ipfs_hash?: string;
+  image_url?: string;
   metadata_ipfs_hash?: string;
   metadata_json?: Record<string, any>;
 }
@@ -49,6 +51,7 @@ export class NFTMetadataService {
         name: data.name || null,
         description: data.description || null,
         image_ipfs_hash: data.image_ipfs_hash || null,
+        image_url: data.image_url || null,
         metadata_ipfs_hash: data.metadata_ipfs_hash || null,
         metadata_json: data.metadata_json || null,
       };
@@ -147,6 +150,40 @@ export class NFTMetadataService {
       }
     } catch (e) {
       console.error('[NFTMetadataService] deleteMetadata failed:', e);
+    }
+  }
+
+  /**
+   * Upload an NFT image to Supabase Storage and return the public URL.
+   * Path: nft-images/{userId}/{tokenId}.{ext}
+   */
+  static async uploadImageToStorage(file: File, tokenId: string): Promise<string | null> {
+    try {
+      const userId = this.getCurrentUserId();
+      const ext = file.name.split('.').pop() || 'png';
+      const filePath = `${userId}/${tokenId}.${ext}`;
+
+      const { error } = await supabase.storage
+        .from('nft-images')
+        .upload(filePath, file, {
+          cacheControl: '31536000',
+          upsert: true,
+        });
+
+      if (error) {
+        console.error('[NFTMetadataService] uploadImageToStorage error:', error);
+        return null;
+      }
+
+      const { data: urlData } = supabase.storage
+        .from('nft-images')
+        .getPublicUrl(filePath);
+
+      console.log('[NFTMetadataService] Image uploaded to Supabase Storage:', urlData.publicUrl);
+      return urlData.publicUrl;
+    } catch (e) {
+      console.error('[NFTMetadataService] uploadImageToStorage failed:', e);
+      return null;
     }
   }
 }

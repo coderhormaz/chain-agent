@@ -69,9 +69,9 @@ const NFTs: React.FC = () => {
             id: nft.tokenId,
             name: nft.metadata?.name || `NFT #${nft.tokenId}`,
             description: nft.metadata?.description || 'No description',
-            image: nft.metadata?.image
-              ? LighthouseService.ipfsToHttp(nft.metadata.image)
-              : 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMzAwIiBoZWlnaHQ9IjMwMCIgZmlsbD0iIzFhMWEyZSIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNiIgZmlsbD0iIzY2NiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPk5GVDwvdGV4dD48L3N2Zz4=',
+            image: nft.image_url
+              || (nft.metadata?.image ? LighthouseService.ipfsToHttp(nft.metadata.image) : '')
+              || 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMzAwIiBoZWlnaHQ9IjMwMCIgZmlsbD0iIzFhMWEyZSIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNiIgZmlsbD0iIzY2NiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPk5GVDwvdGV4dD48L3N2Zz4=',
             contractAddress: import.meta.env.VITE_NFT_FACTORY_CONTRACT || '0x...',
             tokenId: nft.tokenId,
             metadata: {
@@ -177,12 +177,27 @@ const NFTs: React.FC = () => {
 
       console.log('NFT minted successfully:', mintResult);
       
-      // Step 4: Add to local list
+      // Step 4: Upload image to Supabase Storage for reliable display
+      let supabaseImageUrl: string | null = null;
+      try {
+        setMintingProgress('Storing image in Supabase...');
+        supabaseImageUrl = await NFTMetadataService.uploadImageToStorage(
+          formData.image,
+          mintResult.tokenId || '0'
+        );
+        if (supabaseImageUrl) {
+          console.log('✅ Image stored in Supabase Storage:', supabaseImageUrl);
+        }
+      } catch (e) {
+        console.warn('Supabase Storage upload failed (non-fatal):', e);
+      }
+
+      // Step 5: Add to local list
       const newNFT: NFT = {
         id: mintResult.tokenId || Date.now().toString(),
         name: formData.name,
         description: formData.description,
-        image: imageUrl || 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMzAwIiBoZWlnaHQ9IjMwMCIgZmlsbD0iIzFhMWEyZSIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNiIgZmlsbD0iIzY2NiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPk5GVDwvdGV4dD48L3N2Zz4=',
+        image: supabaseImageUrl || imageUrl || 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMzAwIiBoZWlnaHQ9IjMwMCIgZmlsbD0iIzFhMWEyZSIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNiIgZmlsbD0iIzY2NiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPk5GVDwvdGV4dD48L3N2Zz4=',
         contractAddress: import.meta.env.VITE_NFT_FACTORY_CONTRACT || '0x...',
         tokenId: mintResult.tokenId || '0',
         metadata: {
@@ -193,7 +208,7 @@ const NFTs: React.FC = () => {
       
       setNfts(prev => [newNFT, ...prev]);
 
-      // Cache metadata in Supabase so next fetch doesn't depend on IPFS gateway
+      // Cache metadata in Supabase with Supabase Storage image URL
       const contractAddr = import.meta.env.VITE_NFT_FACTORY_CONTRACT || '';
       try {
         await NFTMetadataService.saveMetadata({
@@ -202,6 +217,7 @@ const NFTs: React.FC = () => {
           name: formData.name,
           description: formData.description,
           image_ipfs_hash: uploadResult.ipfsHash || undefined,
+          image_url: supabaseImageUrl || undefined,
           metadata_json: {
             name: formData.name,
             description: formData.description,
@@ -209,7 +225,7 @@ const NFTs: React.FC = () => {
             attributes: nftDetails.attributes,
           },
         });
-        console.log('✅ NFT metadata cached in Supabase');
+        console.log('✅ NFT metadata cached in Supabase with image_url');
       } catch (e) {
         console.warn('NFT metadata cache failed (non-fatal):', e);
       }
@@ -259,9 +275,9 @@ const NFTs: React.FC = () => {
                     id: nft.tokenId,
                     name: nft.metadata?.name || `NFT #${nft.tokenId}`,
                     description: nft.metadata?.description || 'No description',
-                    image: nft.metadata?.image
-                      ? LighthouseService.ipfsToHttp(nft.metadata.image)
-                      : 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMzAwIiBoZWlnaHQ9IjMwMCIgZmlsbD0iIzFhMWEyZSIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNiIgZmlsbD0iIzY2NiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPk5GVDwvdGV4dD48L3N2Zz4=',
+                    image: nft.image_url
+                      || (nft.metadata?.image ? LighthouseService.ipfsToHttp(nft.metadata.image) : '')
+                      || 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMzAwIiBoZWlnaHQ9IjMwMCIgZmlsbD0iIzFhMWEyZSIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNiIgZmlsbD0iIzY2NiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPk5GVDwvdGV4dD48L3N2Zz4=',
                     contractAddress: import.meta.env.VITE_NFT_FACTORY_CONTRACT || '0x...',
                     tokenId: nft.tokenId,
                     metadata: { attributes: nft.metadata?.attributes || [] },
