@@ -42,6 +42,16 @@ export class NFTMetadataService {
    */
   static async saveMetadata(data: SaveNFTMetadataData): Promise<void> {
     try {
+      // Ensure Supabase auth session is active (RLS needs auth.uid())
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        const { data: { session: refreshed } } = await supabase.auth.refreshSession();
+        if (!refreshed) {
+          console.error('[NFTMetadataService] No active Supabase session — cannot save metadata');
+          return;
+        }
+      }
+
       const userId = this.getCurrentUserId();
 
       const row = {
@@ -56,11 +66,18 @@ export class NFTMetadataService {
         metadata_json: data.metadata_json || null,
       };
 
+      console.log('[NFTMetadataService] Saving metadata for token', data.token_id, ':', {
+        name: row.name,
+        image_url: row.image_url,
+        has_metadata_json: !!row.metadata_json,
+      });
+
       const { error } = await supabase
         .from('nft_metadata')
         .upsert(row, { onConflict: 'contract_address,token_id' });
 
       if (error) {
+        console.error('[NFTMetadataService] saveMetadata error:', error);
         if (isAuthError(error)) {
           console.log('[NFTMetadataService] Auth issue, refreshing and retrying...');
           await supabase.auth.refreshSession();
@@ -69,10 +86,13 @@ export class NFTMetadataService {
             .upsert(row, { onConflict: 'contract_address,token_id' });
           if (retry.error) {
             console.error('[NFTMetadataService] Retry failed:', retry.error);
+          } else {
+            console.log('[NFTMetadataService] ✅ Retry succeeded for token', data.token_id);
           }
           return;
         }
-        console.error('[NFTMetadataService] saveMetadata error:', error);
+      } else {
+        console.log('[NFTMetadataService] ✅ Metadata saved for token', data.token_id);
       }
     } catch (e) {
       console.error('[NFTMetadataService] saveMetadata failed:', e);
@@ -159,9 +179,21 @@ export class NFTMetadataService {
    */
   static async uploadImageToStorage(file: File, tokenId: string): Promise<string | null> {
     try {
+      // Ensure Supabase auth session is active (RLS on storage.objects)
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        const { data: { session: refreshed } } = await supabase.auth.refreshSession();
+        if (!refreshed) {
+          console.error('[NFTMetadataService] No active session — cannot upload image');
+          return null;
+        }
+      }
+
       const userId = this.getCurrentUserId();
       const ext = file.name.split('.').pop() || 'png';
       const filePath = `${userId}/${tokenId}.${ext}`;
+
+      console.log('[NFTMetadataService] Uploading image to storage:', filePath, 'size:', file.size);
 
       const { error } = await supabase.storage
         .from('nft-images')
@@ -179,7 +211,7 @@ export class NFTMetadataService {
         .from('nft-images')
         .getPublicUrl(filePath);
 
-      console.log('[NFTMetadataService] Image uploaded to Supabase Storage:', urlData.publicUrl);
+      console.log('[NFTMetadataService] ✅ Image uploaded to Supabase Storage:', urlData.publicUrl);
       return urlData.publicUrl;
     } catch (e) {
       console.error('[NFTMetadataService] uploadImageToStorage failed:', e);

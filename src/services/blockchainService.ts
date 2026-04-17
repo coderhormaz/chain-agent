@@ -283,23 +283,25 @@ export class BlockchainService {
         console.log('🎨 Minted NFT Token ID:', tokenId);
       }
 
-      // Cache metadata in Supabase so it shows on NFT page immediately
+      // Cache metadata in Supabase with 8s timeout so it doesn't hang indefinitely
       try {
         const { NFTMetadataService } = await import('./nftMetadataService');
-        await NFTMetadataService.saveMetadata({
-          token_id: tokenId,
-          contract_address: (addresses.nftFactory || '').toLowerCase(),
-          name: metadata.name,
-          description: metadata.description,
-          image_ipfs_hash: metadata.image?.startsWith('ipfs://')
-            ? metadata.image.slice(7)
-            : undefined,
-          metadata_ipfs_hash: tokenURI.startsWith('ipfs://')
-            ? tokenURI.slice(7)
-            : undefined,
-          metadata_json: metadata,
-        });
-        console.log('✅ NFT metadata cached in Supabase');
+        await Promise.race([
+          NFTMetadataService.saveMetadata({
+            token_id: tokenId,
+            contract_address: (addresses.nftFactory || '').toLowerCase(),
+            name: metadata.name,
+            description: metadata.description,
+            image_ipfs_hash: metadata.image?.startsWith('ipfs://')
+              ? metadata.image.slice(7)
+              : undefined,
+            metadata_ipfs_hash: tokenURI.startsWith('ipfs://')
+              ? tokenURI.slice(7)
+              : undefined,
+            metadata_json: metadata,
+          }),
+          new Promise<void>((resolve) => setTimeout(resolve, 8000)),
+        ]);
       } catch (cacheErr) {
         console.warn('NFT metadata cache failed (non-fatal):', cacheErr);
       }
