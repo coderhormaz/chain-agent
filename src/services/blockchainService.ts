@@ -770,7 +770,7 @@ export class BlockchainService {
       });
 
       // Wrap each promise with a per-NFT timeout so one slow fetch can't block the rest
-      const timedPromises = nftDetailsPromises.map((p, i) =>
+      const timedPromises = nftDetailsPromises.map((p: Promise<any>, i: number) =>
         Promise.race([
           p,
           new Promise<null>(resolve => setTimeout(() => {
