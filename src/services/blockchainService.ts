@@ -71,7 +71,7 @@ export class BlockchainService {
   }
 
   private static getExplorerUrl(hash: string): string {
-    const explorer = import.meta.env.VITE_OPBNB_EXPLORER || 'https://opbnbscan.com';
+    const explorer = import.meta.env.VITE_OPBNB_EXPLORER || 'https://opbnb.bscscan.com';
     return `${explorer}/tx/${hash}`;
   }
 

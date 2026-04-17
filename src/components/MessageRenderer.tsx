@@ -66,13 +66,16 @@ const MessageRenderer: React.FC<MessageRendererProps> = ({ content }) => {
   // Parse contract addresses and transaction hashes to make them clickable
   const parseBlockchainData = (text: string) => {
     // Match transaction hashes and contract addresses (0x followed by 40-66 hex chars)
-    const addressRegex = /(`0x[a-fA-F0-9]{40,66}`)/g;
+    const blockchainRegex = /(`0x[a-fA-F0-9]{40,66}`)/g;
     
-    return text.replace(addressRegex, (match) => {
-      const cleanAddress = match.replace(/`/g, ''); // Remove backticks
-      const explorerUrl = `https://opbnbscan.com/address/${cleanAddress}`;
-      const shortAddress = `${cleanAddress.slice(0, 10)}...${cleanAddress.slice(-8)}`;
-      return `[${shortAddress}](${explorerUrl})`;
+    return text.replace(blockchainRegex, (match) => {
+      const clean = match.replace(/`/g, ''); // Remove backticks
+      const hexLen = clean.length - 2; // subtract "0x" prefix
+      // 64 hex chars = tx hash → /tx/, 40 hex chars = address → /address/
+      const path = hexLen > 40 ? 'tx' : 'address';
+      const explorerUrl = `https://opbnb.bscscan.com/${path}/${clean}`;
+      const short = `${clean.slice(0, 10)}...${clean.slice(-8)}`;
+      return `[${short}](${explorerUrl})`;
     });
   };
 

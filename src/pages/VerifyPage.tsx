@@ -61,7 +61,7 @@ const VerifyPage: React.FC = () => {
     });
   };
 
-  const explorerBase = import.meta.env.VITE_OPBNB_EXPLORER || 'https://opbnbscan.com';
+  const explorerBase = import.meta.env.VITE_OPBNB_EXPLORER || 'https://opbnb.bscscan.com';
 
   const exists = certificate && certificate.issuedAt > 0;
 
