@@ -283,6 +283,27 @@ export class BlockchainService {
         console.log('🎨 Minted NFT Token ID:', tokenId);
       }
 
+      // Cache metadata in Supabase so it shows on NFT page immediately
+      try {
+        const { NFTMetadataService } = await import('./nftMetadataService');
+        await NFTMetadataService.saveMetadata({
+          token_id: tokenId,
+          contract_address: (addresses.nftFactory || '').toLowerCase(),
+          name: metadata.name,
+          description: metadata.description,
+          image_ipfs_hash: metadata.image?.startsWith('ipfs://')
+            ? metadata.image.slice(7)
+            : undefined,
+          metadata_ipfs_hash: tokenURI.startsWith('ipfs://')
+            ? tokenURI.slice(7)
+            : undefined,
+          metadata_json: metadata,
+        });
+        console.log('✅ NFT metadata cached in Supabase');
+      } catch (cacheErr) {
+        console.warn('NFT metadata cache failed (non-fatal):', cacheErr);
+      }
+
       return {
         success: true,
         hash: tx.hash,
@@ -622,119 +643,54 @@ export class BlockchainService {
         return [];
       }
 
-      // Kick off event timestamps + Supabase cache in parallel (non-blocking)
-      // These run alongside NFT detail fetches so they don't add sequential delay.
-      const mintTimestampsPromise = (async () => {
-        const map = new Map<string, Date>();
-        try {
-          // opBNB RPC limits eth_getLogs to 50,000 blocks per request.
-          // Query in chunks from recent blocks backward to find all mint events.
-          const MAX_RANGE = 45000; // stay under the 50k limit
-          const TOTAL_BUDGET_MS = 6000; // abort timestamp search after 6s total
-          const startTime = Date.now();
-          const latestBlock = await provider.getBlockNumber();
-          const mintFilter = contract.filters.NFTMinted(null, userAddress);
-          const allEvents: any[] = [];
+      // Load Supabase cache first (fast DB query) — used to skip IPFS fetches
+      let cachedMetadata = new Map<string, any>();
+      try {
+        const { NFTMetadataService } = await import('./nftMetadataService');
+        cachedMetadata = await NFTMetadataService.getMetadataByUser();
+        console.log(`📦 Loaded ${cachedMetadata.size} cached NFT metadata entries from Supabase`);
+      } catch (cacheErr) {
+        console.warn('⚠️ Could not load cached NFT metadata:', cacheErr);
+      }
 
-          // Search backward in chunks. opBNB ~1 block/sec → 2M blocks ≈ 23 days
-          const oldestBlock = Math.max(0, latestBlock - 2_000_000);
-          for (let to = latestBlock; to >= oldestBlock; to -= MAX_RANGE) {
-            // Enforce total time budget so timestamps never block NFT display
-            if (Date.now() - startTime > TOTAL_BUDGET_MS) {
-              console.warn('⏰ Timestamp fetch time budget exceeded, returning partial results');
-              break;
-            }
-            const from = Math.max(oldestBlock, to - MAX_RANGE + 1);
-            try {
-              const chunk = await Promise.race([
-                contract.queryFilter(mintFilter, from, to),
-                new Promise<any[]>(resolve => setTimeout(() => resolve([]), 3000))
-              ]);
-              allEvents.push(...chunk);
-            } catch (chunkErr) {
-              console.warn(`⚠️ Event query failed for blocks ${from}-${to}:`, chunkErr);
-            }
-            // If we already found events for all our tokenIds, stop early
-            if (allEvents.length >= tokenIds.length) break;
-          }
-
-          // Deduplicate block numbers to minimize RPC calls
-          const blockNumbers = new Set<number>();
-          const eventsByBlock = new Map<number, Array<{ tokenId: string }>>();
-          for (const event of allEvents) {
-            const tokenIdStr = event.args?.[0]?.toString();
-            if (tokenIdStr && event.blockNumber != null) {
-              blockNumbers.add(event.blockNumber);
-              const list = eventsByBlock.get(event.blockNumber) || [];
-              list.push({ tokenId: tokenIdStr });
-              eventsByBlock.set(event.blockNumber, list);
-            }
-          }
-          // Fetch unique blocks in parallel (not per-event)
-          const blockEntries = [...blockNumbers];
-          const blocks = await Promise.all(
-            blockEntries.map(bn =>
-              provider.getBlock(bn).catch(() => null)
-            )
-          );
-          for (let i = 0; i < blockEntries.length; i++) {
-            const block = blocks[i];
-            if (block) {
-              const evts = eventsByBlock.get(blockEntries[i]) || [];
-              for (const evt of evts) {
-                map.set(evt.tokenId, new Date(block.timestamp * 1000));
-              }
-            }
-          }
-          console.log(`⏰ Fetched ${map.size} mint timestamps`);
-        } catch (e) {
-          console.warn('⚠️ Could not fetch mint timestamps:', e);
-        }
-        return map;
-      })();
-
-      const cachedMetadataPromise = (async () => {
-        try {
-          const { NFTMetadataService } = await import('./nftMetadataService');
-          const data = await NFTMetadataService.getMetadataByUser();
-          console.log(`📦 Loaded ${data.size} cached NFT metadata entries from Supabase`);
-          return data;
-        } catch (cacheErr) {
-          console.warn('⚠️ Could not load cached NFT metadata:', cacheErr);
-          return new Map<string, any>();
-        }
-      })();
-
-      // Wait for cache first (fast — single DB query), timestamps can arrive later
-      const cachedMetadata = await cachedMetadataPromise;
       const contractAddr = (addresses.nftFactory || '').toLowerCase();
 
-      // Fetch details for each NFT
-      const nftDetailsPromises = tokenIds.map(async (tokenId: bigint) => {
-        try {
-          const tokenIdStr = tokenId.toString();
+      // Fetch details for each NFT with per-NFT timeout protection.
+      // Use allSettled so one slow NFT doesn't block the rest.
+      const PER_NFT_TIMEOUT_MS = 8000;
 
-          // Batch all RPC reads into one Promise.all — skip separate exists() call.
-          // If the token was burned, these calls will revert and we catch below.
-          let tokenURI: string, owner: string, creator: string;
+      const nftDetailsPromises = tokenIds.map(async (tokenId: bigint) => {
+        const tokenIdStr = tokenId.toString();
+        try {
+          // 1. Try Supabase cache first (instant, no network) — check before RPC calls
+          const cacheKey = `${contractAddr}:${tokenIdStr}`;
+          const cached = cachedMetadata.get(cacheKey);
+
+          // Batch RPC reads — skip tokenURI if cache has metadata (saves an RPC call)
+          let tokenURI = '';
+          let owner: string, creator: string;
           try {
-            [tokenURI, owner, creator] = await Promise.all([
-              contract.tokenURI(tokenId),
-              contract.ownerOf(tokenId),
-              contract.nftCreator(tokenId)
-            ]);
+            if (cached?.metadata_json) {
+              // Cache hit: only need owner + creator
+              [owner, creator] = await Promise.all([
+                contract.ownerOf(tokenId),
+                contract.nftCreator(tokenId)
+              ]);
+            } else {
+              [tokenURI, owner, creator] = await Promise.all([
+                contract.tokenURI(tokenId),
+                contract.ownerOf(tokenId),
+                contract.nftCreator(tokenId)
+              ]);
+            }
           } catch {
             // Token likely burned or doesn't exist
             console.log(`Token ${tokenIdStr} no longer exists or is inaccessible`);
             return null;
           }
 
-          // 1. Try Supabase cache first (instant, no network)
-          const cacheKey = `${contractAddr}:${tokenIdStr}`;
-          const cached = cachedMetadata.get(cacheKey);
           if (cached?.metadata_json) {
             console.log(`✅ Using cached metadata for token ${tokenIdStr}`);
-            // Timestamps may still be loading — attach them later
             return {
               tokenId: tokenIdStr,
               tokenURI,
@@ -742,7 +698,6 @@ export class BlockchainService {
               creator,
               createdAt: cached.created_at ? new Date(cached.created_at) : undefined,
               metadata: cached.metadata_json,
-              _needsTimestamp: true
             };
           }
 
@@ -785,7 +740,7 @@ export class BlockchainService {
             }
           }
 
-          // 3. Opportunistically cache successful IPFS fetches to Supabase (fire-and-forget)
+          // 3. Cache successful metadata fetches to Supabase so next load is instant
           if (metadata && !cached) {
             import('./nftMetadataService').then(({ NFTMetadataService }) => {
               NFTMetadataService.saveMetadata({
@@ -807,7 +762,6 @@ export class BlockchainService {
             owner,
             creator,
             metadata,
-            _needsTimestamp: true
           };
         } catch (error) {
           console.error(`Failed to fetch details for token ${tokenId.toString()}:`, error);
@@ -815,29 +769,84 @@ export class BlockchainService {
         }
       });
 
-      const nfts = await Promise.all(nftDetailsPromises);
-      const validNFTs = nfts.filter((nft): nft is NonNullable<typeof nft> => nft !== null);
+      // Wrap each promise with a per-NFT timeout so one slow fetch can't block the rest
+      const timedPromises = nftDetailsPromises.map((p, i) =>
+        Promise.race([
+          p,
+          new Promise<null>(resolve => setTimeout(() => {
+            console.warn(`⏰ NFT ${tokenIds[i]?.toString()} timed out after ${PER_NFT_TIMEOUT_MS}ms`);
+            resolve(null);
+          }, PER_NFT_TIMEOUT_MS))
+        ])
+      );
 
-      // Try to attach timestamps — they've been loading in parallel.
-      // Use a short race: if timestamps aren't ready yet, return NFTs without them.
+      // allSettled ensures we get partial results even if some NFTs fail
+      const results = await Promise.allSettled(timedPromises);
+      const validNFTs = results
+        .filter((r): r is PromiseFulfilledResult<any> => r.status === 'fulfilled' && r.value !== null)
+        .map(r => r.value);
+
+      // Fetch timestamps AFTER NFT details to avoid RPC rate-limit contention.
+      // Use a short budget so it doesn't delay the return.
       try {
-        const mintTimestamps = await Promise.race([
-          mintTimestampsPromise,
-          new Promise<Map<string, Date>>(resolve => setTimeout(() => resolve(new Map()), 3000))
-        ]);
-        for (const nft of validNFTs) {
-          if ((nft as any)._needsTimestamp) {
-            const ts = mintTimestamps.get(nft.tokenId);
-            if (ts) nft.createdAt = ts;
-            delete (nft as any)._needsTimestamp;
+        const TIMESTAMP_BUDGET_MS = 4000;
+        const MAX_RANGE = 45000;
+        const map = new Map<string, Date>();
+        const startTime = Date.now();
+        const latestBlock = await provider.getBlockNumber();
+        const mintFilter = contract.filters.NFTMinted(null, userAddress);
+        const allEvents: any[] = [];
+        const oldestBlock = Math.max(0, latestBlock - 500_000);
+
+        for (let to = latestBlock; to >= oldestBlock; to -= MAX_RANGE) {
+          if (Date.now() - startTime > TIMESTAMP_BUDGET_MS) {
+            console.warn('⏰ Timestamp fetch time budget exceeded, returning partial results');
+            break;
+          }
+          const from = Math.max(oldestBlock, to - MAX_RANGE + 1);
+          try {
+            const chunk = await Promise.race([
+              contract.queryFilter(mintFilter, from, to),
+              new Promise<any[]>(resolve => setTimeout(() => resolve([]), 2000))
+            ]);
+            allEvents.push(...chunk);
+          } catch {
+            // skip failed chunk
+          }
+          if (allEvents.length >= tokenIds.length) break;
+        }
+
+        const blockNumbers = new Set<number>();
+        const eventsByBlock = new Map<number, Array<{ tokenId: string }>>();
+        for (const event of allEvents) {
+          const tid = event.args?.[0]?.toString();
+          if (tid && event.blockNumber != null) {
+            blockNumbers.add(event.blockNumber);
+            const list = eventsByBlock.get(event.blockNumber) || [];
+            list.push({ tokenId: tid });
+            eventsByBlock.set(event.blockNumber, list);
           }
         }
-      } catch {
-        // Timestamps are optional — never block NFT display
-        console.warn('⚠️ Timestamp attachment skipped');
-        for (const nft of validNFTs) {
-          delete (nft as any)._needsTimestamp;
+        const blockEntries = [...blockNumbers];
+        const blocks = await Promise.all(
+          blockEntries.map(bn => provider.getBlock(bn).catch(() => null))
+        );
+        for (let i = 0; i < blockEntries.length; i++) {
+          const block = blocks[i];
+          if (block) {
+            for (const evt of (eventsByBlock.get(blockEntries[i]) || [])) {
+              map.set(evt.tokenId, new Date(block.timestamp * 1000));
+            }
+          }
         }
+        console.log(`⏰ Fetched ${map.size} mint timestamps`);
+
+        for (const nft of validNFTs) {
+          const ts = map.get(nft.tokenId);
+          if (ts) nft.createdAt = ts;
+        }
+      } catch {
+        console.warn('⚠️ Timestamp fetch skipped');
       }
       
       console.log(`✅ Successfully fetched ${validNFTs.length} NFT details`);

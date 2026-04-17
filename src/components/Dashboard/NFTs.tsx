@@ -50,10 +50,10 @@ const NFTs: React.FC = () => {
       setFetchError(false);
       try {
         console.log('Fetching NFTs for address:', wallet.address);
-        // Overall 15s safety timeout so page never hangs indefinitely
+        // Overall 30s safety timeout so page never hangs indefinitely
         const userNFTs = await Promise.race([
           BlockchainService.getUserNFTs(wallet.address),
-          new Promise<never>((_, reject) => setTimeout(() => reject(new Error('NFT fetch timeout')), 15000))
+          new Promise<never>((_, reject) => setTimeout(() => reject(new Error('NFT fetch timeout')), 30000))
         ]);
         
         // Convert blockchain NFTs to component NFT format
@@ -193,21 +193,26 @@ const NFTs: React.FC = () => {
       
       setNfts(prev => [newNFT, ...prev]);
 
-      // Fire-and-forget: cache metadata in Supabase so we don't depend on IPFS gateway
+      // Cache metadata in Supabase so next fetch doesn't depend on IPFS gateway
       const contractAddr = import.meta.env.VITE_NFT_FACTORY_CONTRACT || '';
-      NFTMetadataService.saveMetadata({
-        token_id: mintResult.tokenId || '0',
-        contract_address: contractAddr,
-        name: formData.name,
-        description: formData.description,
-        image_ipfs_hash: uploadResult.ipfsHash || undefined,
-        metadata_json: {
+      try {
+        await NFTMetadataService.saveMetadata({
+          token_id: mintResult.tokenId || '0',
+          contract_address: contractAddr,
           name: formData.name,
           description: formData.description,
-          image: uploadResult.ipfsHash ? `ipfs://${uploadResult.ipfsHash}` : undefined,
-          attributes: nftDetails.attributes,
-        },
-      }).catch(e => console.warn('NFT metadata cache failed (non-fatal):', e));
+          image_ipfs_hash: uploadResult.ipfsHash || undefined,
+          metadata_json: {
+            name: formData.name,
+            description: formData.description,
+            image: uploadResult.ipfsHash ? `ipfs://${uploadResult.ipfsHash}` : undefined,
+            attributes: nftDetails.attributes,
+          },
+        });
+        console.log('✅ NFT metadata cached in Supabase');
+      } catch (e) {
+        console.warn('NFT metadata cache failed (non-fatal):', e);
+      }
 
       // Success!
       setMintingStage('success');

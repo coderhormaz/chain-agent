@@ -302,12 +302,13 @@ export const useConversationStore = create<ConversationState>()(
                 walletState.wallet.address, 
                 privateKey
               );
-              // Fire-and-forget: cache NFT metadata in Supabase
+              // Cache NFT metadata in Supabase so it shows on NFT page
               if (result.success && result.tokenId) {
-                import('../services/nftMetadataService').then(({ NFTMetadataService }) => {
+                try {
+                  const { NFTMetadataService } = await import('../services/nftMetadataService');
                   const details = action.details as any;
-                  NFTMetadataService.saveMetadata({
-                    token_id: result!.tokenId!,
+                  await NFTMetadataService.saveMetadata({
+                    token_id: result.tokenId,
                     contract_address: (import.meta.env.VITE_NFT_FACTORY_CONTRACT || '').toLowerCase(),
                     name: details.name,
                     description: details.description,
@@ -322,8 +323,11 @@ export const useConversationStore = create<ConversationState>()(
                         : details.imageUrl,
                       attributes: details.attributes,
                     },
-                  }).catch(e => console.warn('NFT metadata cache failed (non-fatal):', e));
-                });
+                  });
+                  console.log('✅ NFT metadata cached in Supabase');
+                } catch (e) {
+                  console.warn('NFT metadata cache failed (non-fatal):', e);
+                }
               }
               break;
               
