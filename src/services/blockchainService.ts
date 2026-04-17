@@ -1,6 +1,27 @@
 import { ethers } from 'ethers';
 import type { TokenCreationDetails, NFTMintingDetails, TransactionDetails } from './geminiAI';
 import { PriceService } from './priceService';
+import type { NFTMetadataRow } from './nftMetadataService';
+
+type NFTAttribute = { trait_type: string; value: string };
+
+interface NFTMetadataPayload extends Record<string, unknown> {
+  name?: string;
+  description?: string;
+  image?: string;
+  external_url?: string;
+  attributes?: NFTAttribute[];
+}
+
+interface UserNFT {
+  tokenId: string;
+  tokenURI: string;
+  owner: string;
+  creator: string;
+  createdAt?: Date;
+  image_url?: string;
+  metadata?: NFTMetadataPayload;
+}
 
 // Smart Contract ABIs (optimized versions)
 const OPTIMIZED_TOKEN_FACTORY_ABI = [
@@ -178,7 +199,7 @@ export class BlockchainService {
       }
 
       // Build metadata JSON
-      const metadata: Record<string, any> = {
+      const metadata: NFTMetadataPayload = {
         name: nftDetails.name,
         description: nftDetails.description || '',
         attributes: nftDetails.attributes || [],
@@ -227,7 +248,7 @@ export class BlockchainService {
           tokenURI = `data:application/json;base64,${btoa(metadataJson)}`;
           console.log('📝 Using base64 fallback tokenURI, length:', tokenURI.length);
         }
-      } catch (uploadError) {
+      } catch {
         // If IPFS upload completely fails, try base64 fallback
         console.log('⚠️ IPFS upload error, attempting base64 fallback...');
         const metadataJson = JSON.stringify(metadata);
@@ -273,7 +294,7 @@ export class BlockchainService {
       console.log('✅ Transaction confirmed in block:', receipt.blockNumber);
 
       // Extract token ID from the Transfer event
-      const transferEvent = receipt.logs.find((log: any) => 
+      const transferEvent = receipt.logs.find((log: ethers.Log | ethers.EventLog) => 
         log.topics[0] === ethers.id('Transfer(address,address,uint256)')
       );
       
@@ -610,20 +631,7 @@ export class BlockchainService {
   }
 
   // Get all NFTs created by a user from the shared collection
-  static async getUserNFTs(userAddress: string): Promise<Array<{
-    tokenId: string;
-    tokenURI: string;
-    owner: string;
-    creator: string;
-    createdAt?: Date;
-    image_url?: string;
-    metadata?: {
-      name?: string;
-      description?: string;
-      image?: string;
-      attributes?: any[];
-    };
-  }>> {
+  static async getUserNFTs(userAddress: string): Promise<UserNFT[]> {
     try {
       console.log('📋 Fetching NFTs for user:', userAddress);
       
@@ -652,7 +660,7 @@ export class BlockchainService {
 
       // Load Supabase cache (with 5s timeout so a slow DB never blocks the page)
       console.log('📦 Loading Supabase metadata cache...');
-      let cachedMetadata = new Map<string, any>();
+      let cachedMetadata = new Map<string, NFTMetadataRow>();
       try {
         const { NFTMetadataService } = await import('./nftMetadataService');
         cachedMetadata = await withTimeout(NFTMetadataService.getMetadataByUser(), 5000, new Map());
@@ -666,7 +674,7 @@ export class BlockchainService {
 
       // Fetch details for each NFT sequentially to avoid RPC rate limiting.
       // Each NFT has its own timeout so a hung call doesn't block everything.
-      const validNFTs: Array<any> = [];
+      const validNFTs: UserNFT[] = [];
 
       for (const tokenId of tokenIds) {
         const tokenIdStr = (tokenId as bigint).toString();
@@ -744,7 +752,7 @@ export class BlockchainService {
           }
 
           // Parse metadata from tokenURI
-          let metadata;
+          let metadata: NFTMetadataPayload | undefined;
           if (tokenURI.startsWith('data:application/json;base64,')) {
             try {
               metadata = JSON.parse(atob(tokenURI.split(',')[1]));
@@ -881,7 +889,7 @@ export class BlockchainService {
 
       // Extract certId from CertificateIssued event
       let certId = '0';
-      const issuedEvent = receipt.logs.find((log: any) =>
+      const issuedEvent = receipt.logs.find((log: ethers.Log | ethers.EventLog) =>
         log.topics[0] === ethers.id('CertificateIssued(uint256,address,address,string)')
       );
       if (issuedEvent && issuedEvent.topics[1]) {

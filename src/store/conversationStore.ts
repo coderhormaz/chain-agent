@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { BlockchainAction } from '../services/geminiAI';
+import type { BlockchainAction, NFTMintingDetails } from '../services/geminiAI';
 import { ConversationService } from '../services/conversationService';
 
 export interface ConversationMessage {
@@ -64,6 +64,9 @@ interface ConversationState {
   setHistoryPanelOpen: (open: boolean) => void;
   persistMessage: (message: ConversationMessage) => Promise<void>;
 }
+
+type PersistedConversationMessage = Omit<ConversationMessage, 'timestamp'> & { timestamp: string };
+type PersistedConversationState = Partial<ConversationState> & { messages?: PersistedConversationMessage[] };
 
 export const useConversationStore = create<ConversationState>()(
   persist(
@@ -306,7 +309,7 @@ export const useConversationStore = create<ConversationState>()(
               if (result.success && result.tokenId) {
                 try {
                   const { NFTMetadataService } = await import('../services/nftMetadataService');
-                  const details = action.details as any;
+                  const details = action.details as NFTMintingDetails;
                   let supabaseImageUrl: string | undefined;
                   if (options?.nftImageFile) {
                     try {
@@ -438,13 +441,14 @@ export const useConversationStore = create<ConversationState>()(
 
           // Persist the result message
           get().persistMessage(successMessage);
-        } catch (error: any) {
+        } catch (error: unknown) {
           console.error('Action execution failed:', error);
+          const errorText = error instanceof Error ? error.message : 'Unknown error occurred';
           
           const errorMessage: ConversationMessage = {
             id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
             type: 'ai',
-            content: `✗ **Transaction Failed**\n\n${error.message || 'Unknown error occurred'}`,
+            content: `✗ **Transaction Failed**\n\n${errorText}`,
             timestamp: new Date(),
             status: 'error'
           };
@@ -474,14 +478,16 @@ export const useConversationStore = create<ConversationState>()(
         _titleGenerated: state._titleGenerated,
       }),
       merge: (persistedState, currentState) => {
-        const persisted = persistedState as any;
-        if (persisted?.messages) {
-          persisted.messages = persisted.messages.map((msg: any) => ({
-            ...msg,
-            timestamp: new Date(msg.timestamp)
-          }));
-        }
-        return { ...currentState, ...persisted };
+        const persisted = (persistedState as PersistedConversationState | undefined) || {};
+        const hydratedMessages = persisted.messages?.map((msg: PersistedConversationMessage) => ({
+          ...msg,
+          timestamp: new Date(msg.timestamp)
+        }));
+        return {
+          ...currentState,
+          ...persisted,
+          messages: hydratedMessages || currentState.messages,
+        };
       }
     }
   )

@@ -66,9 +66,9 @@ export const UploadButton: React.FC<UploadButtonProps> = ({
       } else {
         throw new Error(result.error || 'Upload failed');
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Upload error:', error);
-      onUploadError?.(error.message || 'Upload failed');
+      onUploadError?.(error instanceof Error ? error.message : 'Upload failed');
     } finally {
       setIsUploading(false);
       setUploadProgress(0);

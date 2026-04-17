@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { IoImage, IoCopy, IoCheckmarkCircle, IoCloudUpload, IoCheckmarkDone, IoClose, IoTime, IoCloudDone, IoRefresh } from 'react-icons/io5';
 import { useWalletStore } from '../../store/walletStore';
@@ -15,9 +15,43 @@ interface NFT {
   image: string;
   contractAddress: string;
   tokenId: string;
-  metadata: any;
+  metadata: NFTDisplayMetadata;
   createdAt: Date;
 }
+
+interface NFTAttribute {
+  trait_type: string;
+  value: string;
+}
+
+interface NFTDisplayMetadata {
+  name?: string;
+  description?: string;
+  image?: string;
+  attributes?: NFTAttribute[];
+}
+
+const PLACEHOLDER_IMAGE = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMzAwIiBoZWlnaHQ9IjMwMCIgZmlsbD0iIzFhMWEyZSIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNiIgZmlsbD0iIzY2NiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPk5GVDwvdGV4dD48L3N2Zz4=';
+
+const mapRowsToNFTs = (rows: NFTMetadataRow[]): NFT[] => rows.map((row) => {
+  const metadata = (row.metadata_json ?? {}) as NFTDisplayMetadata;
+  const image = row.image_url
+    || (typeof metadata.image === 'string' ? LighthouseService.ipfsToHttp(metadata.image) : '')
+    || PLACEHOLDER_IMAGE;
+
+  return {
+    id: row.token_id,
+    name: row.name || metadata.name || `NFT #${row.token_id}`,
+    description: row.description || metadata.description || 'No description',
+    image,
+    contractAddress: row.contract_address,
+    tokenId: row.token_id,
+    metadata: {
+      attributes: Array.isArray(metadata.attributes) ? metadata.attributes : []
+    },
+    createdAt: row.created_at ? new Date(row.created_at) : new Date(),
+  };
+});
 
 const NFTs: React.FC = () => {
   const { wallet } = useWalletStore();
@@ -38,29 +72,8 @@ const NFTs: React.FC = () => {
   const [imagePreview, setImagePreview] = useState<string>('');
 
   const contractAddress = (import.meta.env.VITE_NFT_FACTORY_CONTRACT || '').toLowerCase();
-  const placeholderImage = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMzAwIiBoZWlnaHQ9IjMwMCIgZmlsbD0iIzFhMWEyZSIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNiIgZmlsbD0iIzY2NiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPk5GVDwvdGV4dD48L3N2Zz4=';
 
-  const mapRowsToNFTs = (rows: NFTMetadataRow[]): NFT[] => rows.map((row) => {
-    const metadata = row.metadata_json || {};
-    const image = row.image_url
-      || (typeof metadata.image === 'string' ? LighthouseService.ipfsToHttp(metadata.image) : '')
-      || placeholderImage;
-
-    return {
-      id: row.token_id,
-      name: row.name || metadata.name || `NFT #${row.token_id}`,
-      description: row.description || metadata.description || 'No description',
-      image,
-      contractAddress: row.contract_address,
-      tokenId: row.token_id,
-      metadata: {
-        attributes: Array.isArray(metadata.attributes) ? metadata.attributes : []
-      },
-      createdAt: row.created_at ? new Date(row.created_at) : new Date(),
-    };
-  });
-
-  const loadNFTs = async (options: { syncWithBlockchain?: boolean } = {}) => {
+  const loadNFTs = useCallback(async (options: { syncWithBlockchain?: boolean } = {}) => {
     if (!wallet?.address) {
       console.log('No wallet connected, skipping NFT fetch');
       setNfts([]);
@@ -109,11 +122,11 @@ const NFTs: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [contractAddress, wallet?.address]);
 
   useEffect(() => {
     void loadNFTs();
-  }, [wallet?.address]);
+  }, [loadNFTs]);
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -264,10 +277,10 @@ const NFTs: React.FC = () => {
         setIsMinting(false);
       }, 2000);
       
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('NFT minting failed:', error);
       setMintingStage('error');
-      setErrorMessage(error.message || 'Failed to mint NFT');
+      setErrorMessage(error instanceof Error ? error.message : 'Failed to mint NFT');
       setIsMinting(false);
     }
   };
@@ -420,7 +433,7 @@ const NFTs: React.FC = () => {
                   <div className="nft-attributes">
                     <h4>Attributes</h4>
                     <div className="attributes-grid">
-                      {nft.metadata.attributes.map((attr: any, i: number) => (
+                      {nft.metadata.attributes.map((attr: NFTAttribute, i: number) => (
                         <div key={i} className="attribute">
                           <span className="trait-type">{attr.trait_type}</span>
                           <span className="trait-value">{attr.value}</span>

@@ -2,6 +2,8 @@ import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store/authStore';
 import { isAuthError } from './supabaseHelpers';
 
+type NFTMetadataJson = Record<string, unknown>;
+
 export interface NFTMetadataRow {
   id: string;
   user_id: string;
@@ -12,7 +14,7 @@ export interface NFTMetadataRow {
   image_ipfs_hash: string | null;
   image_url: string | null;
   metadata_ipfs_hash: string | null;
-  metadata_json: Record<string, any> | null;
+  metadata_json: NFTMetadataJson | null;
   created_at: string;
 }
 
@@ -28,7 +30,7 @@ export interface SaveNFTMetadataData {
   image_ipfs_hash?: string;
   image_url?: string;
   metadata_ipfs_hash?: string;
-  metadata_json?: Record<string, any>;
+  metadata_json?: NFTMetadataJson;
 }
 
 export class NFTMetadataService {

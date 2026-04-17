@@ -329,7 +329,7 @@ Please try again with a different image or check your internet connection.`,
       console.log('AI NFT Details Result:', parsedDetails);
 
       let name = parsedDetails.name;
-      let description = parsedDetails.description;
+      const description = parsedDetails.description;
 
       // Fallback: simple keyword extraction if AI parsing fails
       if (!name) {
