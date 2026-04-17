@@ -249,7 +249,7 @@ export default function SignUp() {
                     placeholder="Confirm your password"
                     type={isConfirmPasswordVisible ? "text" : "password"}
                     value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setConfirmPassword(e.target.value)}
                     required
                   />
                   <button

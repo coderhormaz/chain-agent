@@ -66,9 +66,9 @@ export class ContactService {
 
       // Handle unique constraint violations
       if (error.code === '23505') {
-        if (error.message.includes('unique_user_contact_name') || error.message.includes('contacts_user_id_contact_name_key')) {
+        if (error.message?.includes('unique_user_contact_name') || error.message?.includes('contacts_user_id_contact_name_key')) {
           throw new Error('A contact with this name already exists');
-        } else if (error.message.includes('unique_user_wallet') || error.message.includes('contacts_user_id_wallet_address_key')) {
+        } else if (error.message?.includes('unique_user_wallet') || error.message?.includes('contacts_user_id_wallet_address_key')) {
           throw new Error('This wallet address is already in your contacts');
         }
       }
@@ -77,7 +77,7 @@ export class ContactService {
     }
 
     console.log('[ContactService] Contact added successfully:', data);
-    return data;
+    return data as Contact;
   }
 
   /**
@@ -100,8 +100,9 @@ export class ContactService {
       throw new Error(error.message || 'Failed to fetch contacts');
     }
 
-    console.log('[ContactService] Found', data?.length || 0, 'contacts');
-    return data || [];
+    const contacts = (data || []) as Contact[];
+    console.log('[ContactService] Found', contacts.length, 'contacts');
+    return contacts;
   }
 
   /**
@@ -140,7 +141,7 @@ export class ContactService {
       throw new Error(error.message || 'Failed to search contact');
     }
 
-    return data;
+    return data as Contact | null;
   }
 
   /**
@@ -162,7 +163,7 @@ export class ContactService {
       throw new Error(error.message || 'Failed to search contacts');
     }
 
-    return data || [];
+    return (data || []) as Contact[];
   }
 
   /**
@@ -191,16 +192,16 @@ export class ContactService {
 
     if (error) {
       if (error.code === '23505') {
-        if (error.message.includes('unique_user_contact_name') || error.message.includes('contacts_user_id_contact_name_key')) {
+        if (error.message?.includes('unique_user_contact_name') || error.message?.includes('contacts_user_id_contact_name_key')) {
           throw new Error('A contact with this name already exists');
-        } else if (error.message.includes('unique_user_wallet') || error.message.includes('contacts_user_id_wallet_address_key')) {
+        } else if (error.message?.includes('unique_user_wallet') || error.message?.includes('contacts_user_id_wallet_address_key')) {
           throw new Error('This wallet address is already in your contacts');
         }
       }
       throw new Error(error.message || 'Failed to update contact');
     }
 
-    return data;
+    return data as Contact;
   }
 
   /**
@@ -242,7 +243,7 @@ export class ContactService {
       throw new Error(error.message || 'Failed to fetch contact');
     }
 
-    return data;
+    return data as Contact | null;
   }
 
   /**
@@ -259,15 +260,15 @@ export class ContactService {
     try {
       const userId = this.getCurrentUserId();
 
-      const { count, error } = await withAuthRetry(() =>
+      const result = await withAuthRetry(() =>
         supabase
           .from('contacts')
           .select('*', { count: 'exact', head: true })
           .eq('user_id', userId)
       );
 
-      if (error) return 0;
-      return count || 0;
+      if (result.error) return 0;
+      return (result as any).count || 0;
     } catch {
       return 0;
     }

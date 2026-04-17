@@ -20,7 +20,7 @@ export function isAuthError(error: { message?: string; code?: string }): boolean
  * which raced with Supabase's built-in `autoRefreshToken`.
  */
 export async function withAuthRetry<T>(
-  fn: () => Promise<{ data: T; error: { message?: string; code?: string } | null }>
+  fn: () => PromiseLike<{ data: T; error: { message?: string; code?: string } | null }>
 ): Promise<{ data: T; error: { message?: string; code?: string } | null }> {
   const result = await fn();
 
