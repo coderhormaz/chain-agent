@@ -1163,20 +1163,27 @@
   transition: opacity 0.15s ease;
 }
 .hp-item:hover .hp-item-actions,
+.hp-item--active .hp-item-actions,
 .hp-item--deleting .hp-item-actions {
   opacity: 1;
+}
+/* Always show on touch devices (no hover) */
+@media (hover: none) {
+  .hp-item-actions {
+    opacity: 0.7;
+  }
 }
 .hp-delete-confirm {
   display: flex;
   align-items: center;
-  gap: 3px;
+  gap: 4px;
 }
 .hp-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: 26px;
+  height: 26px;
   border: none;
   background: transparent;
   color: var(--text-muted);
@@ -1184,20 +1191,55 @@
   cursor: pointer;
   transition: all 0.12s ease;
 }
+.hp-btn svg {
+  display: block;
+  flex-shrink: 0;
+}
 .hp-btn--delete:hover {
   background: rgba(239, 68, 68, 0.1);
   color: #ef4444;
 }
 .hp-btn--yes {
-  background: rgba(239, 68, 68, 0.12);
+  background: rgba(239, 68, 68, 0.15);
   color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.25);
 }
 .hp-btn--yes:hover {
-  background: rgba(239, 68, 68, 0.22);
+  background: rgba(239, 68, 68, 0.25);
+}
+.hp-btn--no {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-secondary);
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 .hp-btn--no:hover {
-  background: rgba(255, 255, 255, 0.06);
-  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-primary);
+}
+/* Light theme overrides */
+[data-theme='light'] .hp-btn {
+  color: #6b7280;
+}
+[data-theme='light'] .hp-btn--delete:hover {
+  background: rgba(239, 68, 68, 0.1);
+  color: #dc2626;
+}
+[data-theme='light'] .hp-btn--yes {
+  background: rgba(239, 68, 68, 0.1);
+  color: #dc2626;
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}
+[data-theme='light'] .hp-btn--yes:hover {
+  background: rgba(239, 68, 68, 0.2);
+}
+[data-theme='light'] .hp-btn--no {
+  background: rgba(0, 0, 0, 0.04);
+  color: #6b7280;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+[data-theme='light'] .hp-btn--no:hover {
+  background: rgba(0, 0, 0, 0.08);
+  color: #374151;
 }
 
 /* History toggle button in chat header */

@@ -277,14 +277,14 @@ const ChatHistoryPanel: React.FC<ChatHistoryPanelProps> = ({
                                     onClick={(e) => handleDelete(e, conv.id)}
                                     title="Confirm delete"
                                   >
-                                    <Trash2 size={11} />
+                                    <Trash2 size={13} />
                                   </button>
                                   <button
                                     className="hp-btn hp-btn--no"
                                     onClick={handleCancelDelete}
                                     title="Cancel"
                                   >
-                                    <X size={11} />
+                                    <X size={13} />
                                   </button>
                                 </div>
                               ) : (
@@ -293,7 +293,7 @@ const ChatHistoryPanel: React.FC<ChatHistoryPanelProps> = ({
                                   onClick={(e) => handleDelete(e, conv.id)}
                                   title="Delete"
                                 >
-                                  <Trash2 size={11} />
+                                  <Trash2 size={13} />
                                 </button>
                               )}
                             </div>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { IoImage, IoCopy, IoCheckmarkCircle, IoCloudUpload, IoCheckmarkDone, IoClose, IoTime, IoCloudDone } from 'react-icons/io5';
+import { IoImage, IoCopy, IoCheckmarkCircle, IoCloudUpload, IoCheckmarkDone, IoClose, IoTime, IoCloudDone, IoRefresh } from 'react-icons/io5';
 import { useWalletStore } from '../../store/walletStore';
 import { WalletService } from '../../lib/wallet';
 import { BlockchainService } from '../../services/blockchainService';
@@ -28,6 +28,7 @@ const NFTs: React.FC = () => {
   const [mintingStage, setMintingStage] = useState<'idle' | 'uploading' | 'minting' | 'success' | 'error'>('idle');
   const [mintingProgress, setMintingProgress] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
+  const [fetchError, setFetchError] = useState(false);
   const [copiedAddress, setCopiedAddress] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: '',
@@ -46,12 +47,13 @@ const NFTs: React.FC = () => {
       }
 
       setIsLoading(true);
+      setFetchError(false);
       try {
         console.log('Fetching NFTs for address:', wallet.address);
-        // Overall 12s safety timeout so page never hangs indefinitely
+        // Overall 15s safety timeout so page never hangs indefinitely
         const userNFTs = await Promise.race([
           BlockchainService.getUserNFTs(wallet.address),
-          new Promise<never>((_, reject) => setTimeout(() => reject(new Error('NFT fetch timeout')), 12000))
+          new Promise<never>((_, reject) => setTimeout(() => reject(new Error('NFT fetch timeout')), 15000))
         ]);
         
         // Convert blockchain NFTs to component NFT format
@@ -84,6 +86,7 @@ const NFTs: React.FC = () => {
         setNfts(formattedNFTs);
       } catch (error) {
         console.error('Failed to fetch NFTs:', error);
+        setFetchError(true);
       } finally {
         setIsLoading(false);
       }
@@ -238,12 +241,43 @@ const NFTs: React.FC = () => {
     <div className="nfts-container">
       <div className="page-header">
         <h1>NFTs</h1>
-        <button
-          className="page-header-btn page-header-btn--primary"
-          onClick={() => setShowMintModal(true)}
-        >
-          + Mint NFT
-        </button>
+        <div className="page-header-actions">
+          <button
+            className="page-header-btn"
+            onClick={() => {
+              if (!wallet?.address || isLoading) return;
+              setIsLoading(true);
+              setFetchError(false);
+              BlockchainService.getUserNFTs(wallet.address)
+                .then(userNFTs => {
+                  const formattedNFTs: NFT[] = userNFTs.map(nft => ({
+                    id: nft.tokenId,
+                    name: nft.metadata?.name || `NFT #${nft.tokenId}`,
+                    description: nft.metadata?.description || 'No description',
+                    image: nft.metadata?.image
+                      ? LighthouseService.ipfsToHttp(nft.metadata.image)
+                      : 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMzAwIiBoZWlnaHQ9IjMwMCIgZmlsbD0iIzFhMWEyZSIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNiIgZmlsbD0iIzY2NiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPk5GVDwvdGV4dD48L3N2Zz4=',
+                    contractAddress: import.meta.env.VITE_NFT_FACTORY_CONTRACT || '0x...',
+                    tokenId: nft.tokenId,
+                    metadata: { attributes: nft.metadata?.attributes || [] },
+                    createdAt: nft.createdAt || new Date()
+                  }));
+                  setNfts(formattedNFTs);
+                })
+                .catch(() => setFetchError(true))
+                .finally(() => setIsLoading(false));
+            }}
+            disabled={isLoading || !wallet}
+          >
+            <IoRefresh size={15} /> Refresh
+          </button>
+          <button
+            className="page-header-btn page-header-btn--primary"
+            onClick={() => setShowMintModal(true)}
+          >
+            + Mint NFT
+          </button>
+        </div>
       </div>
 
       <div className="nfts-grid">
@@ -268,14 +302,61 @@ const NFTs: React.FC = () => {
         ) : nfts.length === 0 ? (
           <div className="no-nfts">
             <div className="no-nfts-icon"><IoImage size={40} /></div>
-            <h3>No NFTs yet</h3>
-            <p>Mint your first NFT with Lighthouse IPFS</p>
-            <button
-              className="empty-state-btn"
-              onClick={() => setShowMintModal(true)}
-            >
-              Mint NFT
-            </button>
+            {fetchError ? (
+              <>
+                <h3>Failed to load NFTs</h3>
+                <p>Network issue — your NFTs are safe on-chain</p>
+                <button
+                  className="empty-state-btn"
+                  onClick={() => {
+                    setIsLoading(true);
+                    setFetchError(false);
+                    // Re-trigger the useEffect by toggling state
+                    setTimeout(() => {
+                      const fetchRetry = async () => {
+                        try {
+                          const userNFTs = await Promise.race([
+                            BlockchainService.getUserNFTs(wallet!.address),
+                            new Promise<never>((_, reject) => setTimeout(() => reject(new Error('NFT fetch timeout')), 15000))
+                          ]);
+                          const formattedNFTs: NFT[] = userNFTs.map(nft => ({
+                            id: nft.tokenId,
+                            name: nft.metadata?.name || `NFT #${nft.tokenId}`,
+                            description: nft.metadata?.description || 'No description',
+                            image: nft.metadata?.image
+                              ? LighthouseService.ipfsToHttp(nft.metadata.image)
+                              : 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMzAwIiBoZWlnaHQ9IjMwMCIgZmlsbD0iIzFhMWEyZSIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNiIgZmlsbD0iIzY2NiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPk5GVDwvdGV4dD48L3N2Zz4=',
+                            contractAddress: import.meta.env.VITE_NFT_FACTORY_CONTRACT || '0x...',
+                            tokenId: nft.tokenId,
+                            metadata: { attributes: nft.metadata?.attributes || [] },
+                            createdAt: nft.createdAt || new Date()
+                          }));
+                          setNfts(formattedNFTs);
+                        } catch {
+                          setFetchError(true);
+                        } finally {
+                          setIsLoading(false);
+                        }
+                      };
+                      fetchRetry();
+                    }, 100);
+                  }}
+                >
+                  <IoRefresh size={14} /> Retry
+                </button>
+              </>
+            ) : (
+              <>
+                <h3>No NFTs yet</h3>
+                <p>Mint your first NFT with Lighthouse IPFS</p>
+                <button
+                  className="empty-state-btn"
+                  onClick={() => setShowMintModal(true)}
+                >
+                  Mint NFT
+                </button>
+              </>
+            )}
           </div>
         ) : (
           nfts.map((nft, index) => (

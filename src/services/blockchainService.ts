@@ -627,15 +627,41 @@ export class BlockchainService {
       const mintTimestampsPromise = (async () => {
         const map = new Map<string, Date>();
         try {
+          // opBNB RPC limits eth_getLogs to 50,000 blocks per request.
+          // Query in chunks from recent blocks backward to find all mint events.
+          const MAX_RANGE = 45000; // stay under the 50k limit
+          const TOTAL_BUDGET_MS = 6000; // abort timestamp search after 6s total
+          const startTime = Date.now();
+          const latestBlock = await provider.getBlockNumber();
           const mintFilter = contract.filters.NFTMinted(null, userAddress);
-          const events = await Promise.race([
-            contract.queryFilter(mintFilter),
-            new Promise<any[]>(resolve => setTimeout(() => resolve([]), 5000)) // 5s cap
-          ]);
+          const allEvents: any[] = [];
+
+          // Search backward in chunks. opBNB ~1 block/sec → 2M blocks ≈ 23 days
+          const oldestBlock = Math.max(0, latestBlock - 2_000_000);
+          for (let to = latestBlock; to >= oldestBlock; to -= MAX_RANGE) {
+            // Enforce total time budget so timestamps never block NFT display
+            if (Date.now() - startTime > TOTAL_BUDGET_MS) {
+              console.warn('⏰ Timestamp fetch time budget exceeded, returning partial results');
+              break;
+            }
+            const from = Math.max(oldestBlock, to - MAX_RANGE + 1);
+            try {
+              const chunk = await Promise.race([
+                contract.queryFilter(mintFilter, from, to),
+                new Promise<any[]>(resolve => setTimeout(() => resolve([]), 3000))
+              ]);
+              allEvents.push(...chunk);
+            } catch (chunkErr) {
+              console.warn(`⚠️ Event query failed for blocks ${from}-${to}:`, chunkErr);
+            }
+            // If we already found events for all our tokenIds, stop early
+            if (allEvents.length >= tokenIds.length) break;
+          }
+
           // Deduplicate block numbers to minimize RPC calls
           const blockNumbers = new Set<number>();
           const eventsByBlock = new Map<number, Array<{ tokenId: string }>>();
-          for (const event of events) {
+          for (const event of allEvents) {
             const tokenIdStr = event.args?.[0]?.toString();
             if (tokenIdStr && event.blockNumber != null) {
               blockNumbers.add(event.blockNumber);
@@ -792,15 +818,24 @@ export class BlockchainService {
       const nfts = await Promise.all(nftDetailsPromises);
       const validNFTs = nfts.filter((nft): nft is NonNullable<typeof nft> => nft !== null);
 
-      // Now attach timestamps (they've been loading in parallel)
-      const mintTimestamps = await Promise.race([
-        mintTimestampsPromise,
-        new Promise<Map<string, Date>>(resolve => setTimeout(() => resolve(new Map()), 2000))
-      ]);
-      for (const nft of validNFTs) {
-        if ((nft as any)._needsTimestamp) {
-          const ts = mintTimestamps.get(nft.tokenId);
-          if (ts) nft.createdAt = ts;
+      // Try to attach timestamps — they've been loading in parallel.
+      // Use a short race: if timestamps aren't ready yet, return NFTs without them.
+      try {
+        const mintTimestamps = await Promise.race([
+          mintTimestampsPromise,
+          new Promise<Map<string, Date>>(resolve => setTimeout(() => resolve(new Map()), 3000))
+        ]);
+        for (const nft of validNFTs) {
+          if ((nft as any)._needsTimestamp) {
+            const ts = mintTimestamps.get(nft.tokenId);
+            if (ts) nft.createdAt = ts;
+            delete (nft as any)._needsTimestamp;
+          }
+        }
+      } catch {
+        // Timestamps are optional — never block NFT display
+        console.warn('⚠️ Timestamp attachment skipped');
+        for (const nft of validNFTs) {
           delete (nft as any)._needsTimestamp;
         }
       }
