@@ -1,6 +1,6 @@
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store/authStore';
-import { ensureSession, isAuthError } from './supabaseHelpers';
+import { isAuthError } from './supabaseHelpers';
 
 export interface NFTMetadataRow {
   id: string;
@@ -41,7 +41,6 @@ export class NFTMetadataService {
   static async saveMetadata(data: SaveNFTMetadataData): Promise<void> {
     try {
       const userId = this.getCurrentUserId();
-      await ensureSession();
 
       const row = {
         user_id: userId,
@@ -84,7 +83,6 @@ export class NFTMetadataService {
     const map = new Map<string, NFTMetadataRow>();
     try {
       const userId = this.getCurrentUserId();
-      await ensureSession();
 
       const { data, error } = await supabase
         .from('nft_metadata')
@@ -126,7 +124,6 @@ export class NFTMetadataService {
   static async deleteMetadata(contractAddress: string, tokenId: string): Promise<void> {
     try {
       this.getCurrentUserId();
-      await ensureSession();
 
       const { error } = await supabase
         .from('nft_metadata')

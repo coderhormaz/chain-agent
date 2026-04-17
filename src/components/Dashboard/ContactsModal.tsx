@@ -67,6 +67,16 @@ export const ContactsModal: React.FC<ContactsModalProps> = ({ isOpen, onClose })
           console.log('[ContactsModal] Auth error, retrying...');
           setTimeout(() => attemptFetch(retryCount + 1), 1000);
         } else {
+          // Check if the session is actually dead — if so, sign out
+          // instead of showing a stuck "Retry Connection" button
+          try {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) {
+              console.warn('[ContactsModal] No valid session, signing out');
+              useAuthStore.getState().setUser(null);
+              return;
+            }
+          } catch { /* ignore check errors */ }
           setAuthError(true);
         }
       }

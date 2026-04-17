@@ -1,6 +1,6 @@
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store/authStore';
-import { ensureSession, isAuthError } from './supabaseHelpers';
+import { isAuthError } from './supabaseHelpers';
 
 export interface ConversationRow {
   id: string;
@@ -35,7 +35,6 @@ export class ConversationService {
 
   static async getConversations(): Promise<ConversationRow[]> {
     const userId = this.getCurrentUserId();
-    await ensureSession();
 
     // Only return conversations that have at least one message
     const { data, error } = await supabase
@@ -64,7 +63,6 @@ export class ConversationService {
 
   static async createConversation(title = 'New Chat'): Promise<ConversationRow> {
     const userId = this.getCurrentUserId();
-    await ensureSession();
 
     const { data, error } = await supabase
       .from('conversations')
@@ -89,7 +87,6 @@ export class ConversationService {
 
   static async updateConversationTitle(id: string, title: string): Promise<void> {
     const userId = this.getCurrentUserId();
-    await ensureSession();
 
     const { error } = await supabase
       .from('conversations')
@@ -113,7 +110,6 @@ export class ConversationService {
 
   static async deleteConversation(id: string): Promise<void> {
     const userId = this.getCurrentUserId();
-    await ensureSession();
 
     const { error } = await supabase
       .from('conversations')
@@ -137,7 +133,6 @@ export class ConversationService {
 
   static async deleteAllConversations(): Promise<void> {
     const userId = this.getCurrentUserId();
-    await ensureSession();
 
     const { error } = await supabase
       .from('conversations')
@@ -153,7 +148,6 @@ export class ConversationService {
 
   static async getMessages(conversationId: string): Promise<ConversationMessageRow[]> {
     const userId = this.getCurrentUserId();
-    await ensureSession();
 
     const { data, error } = await supabase
       .from('conversation_messages')
@@ -189,7 +183,6 @@ export class ConversationService {
     }
   ): Promise<ConversationMessageRow> {
     const userId = this.getCurrentUserId();
-    await ensureSession();
 
     const { data, error } = await supabase
       .from('conversation_messages')

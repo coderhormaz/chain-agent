@@ -63,7 +63,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
       acquireTimeout: number,
       fn: () => Promise<unknown>
     ) => {
-      const effectiveTimeout = acquireTimeout <= 0 ? 5000 : acquireTimeout;
+      const effectiveTimeout = acquireTimeout <= 0 ? 10000 : acquireTimeout;
 
       if (typeof navigator !== 'undefined' && navigator?.locks) {
         const controller = new AbortController();
@@ -103,38 +103,6 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     schema: 'public',
   }
 });
-
-// Add session recovery mechanism
-let sessionRecoveryAttempted = false;
-
-export const ensureSession = async () => {
-  try {
-    const { data: { session }, error } = await supabase.auth.getSession();
-    
-    if (error || !session) {
-      console.log('Session not found, attempting recovery...');
-      
-      if (!sessionRecoveryAttempted) {
-        sessionRecoveryAttempted = true;
-        const { data: { session: refreshedSession }, error: refreshError } = await supabase.auth.refreshSession();
-        
-        if (!refreshError && refreshedSession) {
-          console.log('Session recovered successfully');
-          sessionRecoveryAttempted = false;
-          return refreshedSession;
-        }
-      }
-      
-      return null;
-    }
-    
-    sessionRecoveryAttempted = false;
-    return session;
-  } catch (error) {
-    console.error('Error ensuring session:', error);
-    return null;
-  }
-};
 
 // Connection health checker
 export const testConnection = async (): Promise<{ success: boolean; latency: number; error?: string }> => {
