@@ -53,7 +53,7 @@ interface ConversationState {
   setPendingAction: (action: PendingAction | null) => void;
   setProcessing: (processing: boolean) => void;
   clearConversation: () => void;
-  confirmAction: () => Promise<void>;
+  confirmAction: (options?: { nftImageFile?: File | null }) => Promise<void>;
   rejectAction: () => void;
 
   // Chat history actions
@@ -266,7 +266,7 @@ export const useConversationStore = create<ConversationState>()(
         get().startNewConversation();
       },
 
-      confirmAction: async () => {
+      confirmAction: async (options) => {
         const state = get();
         if (!state.pendingAction) return;
 
@@ -302,32 +302,20 @@ export const useConversationStore = create<ConversationState>()(
                 walletState.wallet.address, 
                 privateKey
               );
-              // Cache NFT metadata in Supabase (non-blocking with 5s timeout)
+              // Persist minted NFT details into Supabase so the NFT page loads from DB.
               if (result.success && result.tokenId) {
                 try {
                   const { NFTMetadataService } = await import('../services/nftMetadataService');
                   const details = action.details as any;
-
-                  // Try to fetch the IPFS image and store in Supabase Storage
                   let supabaseImageUrl: string | undefined;
-                  if (details.imageUrl) {
+                  if (options?.nftImageFile) {
                     try {
-                      // Extract IPFS CID and use CORS-friendly gateways
-                      const cidMatch = details.imageUrl.match(/\/ipfs\/([a-zA-Z0-9]+)/);
-                      if (cidMatch) {
-                        const { LighthouseService } = await import('../services/lighthouseService');
-                        const imgResp = await Promise.race([
-                          LighthouseService.fetchFromIPFS(cidMatch[1]),
-                          new Promise<Response>((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000)),
-                        ]);
-                        if (imgResp && imgResp.ok) {
-                          const blob = await imgResp.blob();
-                          const file = new File([blob], `nft_${result.tokenId}.png`, { type: blob.type || 'image/png' });
-                          supabaseImageUrl = (await NFTMetadataService.uploadImageToStorage(file, result.tokenId)) || undefined;
-                        }
-                      }
-                    } catch {
-                      console.warn('Could not store NFT image in Supabase Storage (non-fatal)');
+                      supabaseImageUrl = (await NFTMetadataService.uploadImageToStorage(
+                        options.nftImageFile,
+                        result.tokenId
+                      )) || undefined;
+                    } catch (storageErr) {
+                      console.warn('Could not store NFT image in Supabase Storage (non-fatal):', storageErr);
                     }
                   }
 

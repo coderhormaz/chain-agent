@@ -33,7 +33,7 @@ const AIChat: React.FC = () => {
   } = useConversationStore();
   
   const [inputValue, setInputValue] = useState('');
-  const [uploadedImage, setUploadedImage] = useState<{url: string, fileName: string, ipfsUrl?: string} | null>(null);
+  const [uploadedImage, setUploadedImage] = useState<{url: string, fileName: string, ipfsUrl?: string, file: File} | null>(null);
   const [isWaitingForNFTDetails, setIsWaitingForNFTDetails] = useState(false);
   const [pendingNFTDetails, setPendingNFTDetails] = useState<{name?: string, description?: string} | null>(null);
   const [isContactsModalOpen, setIsContactsModalOpen] = useState(false);
@@ -183,7 +183,7 @@ const AIChat: React.FC = () => {
       // User confirmed - execute the action
       try {
         setProcessing(true);
-        await confirmAction(); // This now handles the blockchain execution
+        await confirmAction({ nftImageFile: uploadedImage?.file || null }); // This now handles the blockchain execution
         // The confirmAction method will add success/failure messages automatically
       } catch (error) {
         console.error('Error executing action:', error);
@@ -217,10 +217,10 @@ No problem! The action has been cancelled. Is there something else I can help yo
   };
 
   // Handle image upload completion
-  const handleUploadComplete = async (url: string, fileName: string, ipfsHash?: string) => {
+  const handleUploadComplete = async (url: string, fileName: string, ipfsHash: string | undefined, file: File) => {
     // url is a local blob URL for display; ipfsHash is needed for blockchain
     const ipfsUrl = ipfsHash ? `https://dweb.link/ipfs/${ipfsHash}` : url;
-    setUploadedImage({ url, fileName, ipfsUrl });
+    setUploadedImage({ url, fileName, ipfsUrl, file });
     
     // Mark the upload message as completed
     const uploadMessage = messages.find(msg => msg.showUpload && !msg.hasUploaded);

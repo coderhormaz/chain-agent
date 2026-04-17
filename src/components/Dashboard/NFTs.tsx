@@ -5,7 +5,7 @@ import { useWalletStore } from '../../store/walletStore';
 import { WalletService } from '../../lib/wallet';
 import { BlockchainService } from '../../services/blockchainService';
 import { LighthouseService } from '../../services/lighthouseService';
-import { NFTMetadataService } from '../../services/nftMetadataService';
+import { NFTMetadataService, type NFTMetadataRow } from '../../services/nftMetadataService';
 import { shortenAddress, copyToClipboard } from '../../lib/utils';
 
 interface NFT {
@@ -37,63 +37,83 @@ const NFTs: React.FC = () => {
   });
   const [imagePreview, setImagePreview] = useState<string>('');
 
-  useEffect(() => {
-    // Fetch user's NFTs from the blockchain
-    const fetchNFTs = async () => {
-      if (!wallet?.address) {
-        console.log('No wallet connected, skipping NFT fetch');
-        setIsLoading(false);
-        return;
-      }
+  const contractAddress = (import.meta.env.VITE_NFT_FACTORY_CONTRACT || '').toLowerCase();
+  const placeholderImage = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMzAwIiBoZWlnaHQ9IjMwMCIgZmlsbD0iIzFhMWEyZSIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNiIgZmlsbD0iIzY2NiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPk5GVDwvdGV4dD48L3N2Zz4=';
 
-      setIsLoading(true);
-      setFetchError(false);
-      try {
-        console.log('Fetching NFTs for address:', wallet.address);
-        // Overall 45s safety timeout so page never hangs indefinitely
-        const userNFTs = await Promise.race([
-          BlockchainService.getUserNFTs(wallet.address),
-          new Promise<never>((_, reject) => setTimeout(() => reject(new Error('NFT fetch timeout')), 45000))
-        ]);
-        
-        // Convert blockchain NFTs to component NFT format
-        const formattedNFTs: NFT[] = userNFTs.map(nft => {
-          console.log('📦 Processing NFT:', {
-            tokenId: nft.tokenId,
-            name: nft.metadata?.name,
-            imageURL: nft.metadata?.image,
-            tokenURI: nft.tokenURI
-          });
-          
-          return {
-            id: nft.tokenId,
-            name: nft.metadata?.name || `NFT #${nft.tokenId}`,
-            description: nft.metadata?.description || 'No description',
-            image: nft.image_url
-              || (nft.metadata?.image ? LighthouseService.ipfsToHttp(nft.metadata.image) : '')
-              || 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMzAwIiBoZWlnaHQ9IjMwMCIgZmlsbD0iIzFhMWEyZSIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNiIgZmlsbD0iIzY2NiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPk5GVDwvdGV4dD48L3N2Zz4=',
-            contractAddress: import.meta.env.VITE_NFT_FACTORY_CONTRACT || '0x...',
-            tokenId: nft.tokenId,
-            metadata: {
-              attributes: nft.metadata?.attributes || []
-            },
-            createdAt: nft.createdAt || new Date()
-          };
-        });
+  const mapRowsToNFTs = (rows: NFTMetadataRow[]): NFT[] => rows.map((row) => {
+    const metadata = row.metadata_json || {};
+    const image = row.image_url
+      || (typeof metadata.image === 'string' ? LighthouseService.ipfsToHttp(metadata.image) : '')
+      || placeholderImage;
 
-        console.log(`✅ Fetched ${formattedNFTs.length} NFTs from blockchain`);
-        console.log('NFT Image URLs:', formattedNFTs.map(nft => ({ id: nft.id, image: nft.image })));
-        setNfts(formattedNFTs);
-      } catch (error) {
-        console.error('Failed to fetch NFTs:', error);
-        setFetchError(true);
-      } finally {
-        setIsLoading(false);
-      }
+    return {
+      id: row.token_id,
+      name: row.name || metadata.name || `NFT #${row.token_id}`,
+      description: row.description || metadata.description || 'No description',
+      image,
+      contractAddress: row.contract_address,
+      tokenId: row.token_id,
+      metadata: {
+        attributes: Array.isArray(metadata.attributes) ? metadata.attributes : []
+      },
+      createdAt: row.created_at ? new Date(row.created_at) : new Date(),
     };
+  });
 
-    fetchNFTs();
-  }, [wallet]);
+  const loadNFTs = async (options: { syncWithBlockchain?: boolean } = {}) => {
+    if (!wallet?.address) {
+      console.log('No wallet connected, skipping NFT fetch');
+      setNfts([]);
+      setIsLoading(false);
+      return;
+    }
+
+    setIsLoading(true);
+    setFetchError(false);
+
+    try {
+      console.log('Loading NFTs from Supabase for address:', wallet.address);
+
+      let rows = await Promise.race([
+        NFTMetadataService.listMetadataByUser({ contractAddress }),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('NFT DB fetch timeout')), 15000))
+      ]);
+
+      if (options.syncWithBlockchain || rows.length === 0) {
+        try {
+          console.log('Syncing blockchain NFTs into Supabase...');
+          await Promise.race([
+            BlockchainService.syncUserNFTsToDatabase(wallet.address),
+            new Promise<never>((_, reject) => setTimeout(() => reject(new Error('NFT sync timeout')), 45000))
+          ]);
+
+          rows = await Promise.race([
+            NFTMetadataService.listMetadataByUser({ contractAddress }),
+            new Promise<never>((_, reject) => setTimeout(() => reject(new Error('NFT DB reload timeout')), 15000))
+          ]);
+        } catch (syncError) {
+          console.warn('NFT sync failed:', syncError);
+          if (options.syncWithBlockchain) {
+            throw syncError;
+          }
+        }
+      }
+
+      const formattedNFTs = mapRowsToNFTs(rows);
+      console.log(`✅ Loaded ${formattedNFTs.length} NFTs from Supabase`);
+      setNfts(formattedNFTs);
+    } catch (error) {
+      console.error('Failed to load NFTs from Supabase:', error);
+      setFetchError(true);
+      setNfts([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadNFTs();
+  }, [wallet?.address]);
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -267,26 +287,7 @@ const NFTs: React.FC = () => {
             className="page-header-btn"
             onClick={() => {
               if (!wallet?.address || isLoading) return;
-              setIsLoading(true);
-              setFetchError(false);
-              BlockchainService.getUserNFTs(wallet.address)
-                .then(userNFTs => {
-                  const formattedNFTs: NFT[] = userNFTs.map(nft => ({
-                    id: nft.tokenId,
-                    name: nft.metadata?.name || `NFT #${nft.tokenId}`,
-                    description: nft.metadata?.description || 'No description',
-                    image: nft.image_url
-                      || (nft.metadata?.image ? LighthouseService.ipfsToHttp(nft.metadata.image) : '')
-                      || 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMzAwIiBoZWlnaHQ9IjMwMCIgZmlsbD0iIzFhMWEyZSIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNiIgZmlsbD0iIzY2NiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPk5GVDwvdGV4dD48L3N2Zz4=',
-                    contractAddress: import.meta.env.VITE_NFT_FACTORY_CONTRACT || '0x...',
-                    tokenId: nft.tokenId,
-                    metadata: { attributes: nft.metadata?.attributes || [] },
-                    createdAt: nft.createdAt || new Date()
-                  }));
-                  setNfts(formattedNFTs);
-                })
-                .catch(() => setFetchError(true))
-                .finally(() => setIsLoading(false));
+              void loadNFTs({ syncWithBlockchain: true });
             }}
             disabled={isLoading || !wallet}
           >
@@ -330,37 +331,7 @@ const NFTs: React.FC = () => {
                 <button
                   className="empty-state-btn"
                   onClick={() => {
-                    setIsLoading(true);
-                    setFetchError(false);
-                    // Re-trigger the useEffect by toggling state
-                    setTimeout(() => {
-                      const fetchRetry = async () => {
-                        try {
-                          const userNFTs = await Promise.race([
-                            BlockchainService.getUserNFTs(wallet!.address),
-                            new Promise<never>((_, reject) => setTimeout(() => reject(new Error('NFT fetch timeout')), 15000))
-                          ]);
-                          const formattedNFTs: NFT[] = userNFTs.map(nft => ({
-                            id: nft.tokenId,
-                            name: nft.metadata?.name || `NFT #${nft.tokenId}`,
-                            description: nft.metadata?.description || 'No description',
-                            image: nft.metadata?.image
-                              ? LighthouseService.ipfsToHttp(nft.metadata.image)
-                              : 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMzAwIiBoZWlnaHQ9IjMwMCIgZmlsbD0iIzFhMWEyZSIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNiIgZmlsbD0iIzY2NiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPk5GVDwvdGV4dD48L3N2Zz4=',
-                            contractAddress: import.meta.env.VITE_NFT_FACTORY_CONTRACT || '0x...',
-                            tokenId: nft.tokenId,
-                            metadata: { attributes: nft.metadata?.attributes || [] },
-                            createdAt: nft.createdAt || new Date()
-                          }));
-                          setNfts(formattedNFTs);
-                        } catch {
-                          setFetchError(true);
-                        } finally {
-                          setIsLoading(false);
-                        }
-                      };
-                      fetchRetry();
-                    }, 100);
+                    void loadNFTs({ syncWithBlockchain: true });
                   }}
                 >
                   <IoRefresh size={14} /> Retry

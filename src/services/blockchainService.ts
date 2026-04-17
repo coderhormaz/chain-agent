@@ -838,6 +838,11 @@ export class BlockchainService {
     }
   }
 
+  static async syncUserNFTsToDatabase(userAddress: string): Promise<number> {
+    const nfts = await this.getUserNFTs(userAddress);
+    return nfts.length;
+  }
+
   // ── Certificate Registry Methods ────────────────────────────
 
   // Issue a certificate on-chain

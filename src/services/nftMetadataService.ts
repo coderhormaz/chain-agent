@@ -16,6 +16,10 @@ export interface NFTMetadataRow {
   created_at: string;
 }
 
+export interface ListNFTMetadataOptions {
+  contractAddress?: string;
+}
+
 export interface SaveNFTMetadataData {
   token_id: string;
   contract_address: string;
@@ -150,6 +154,65 @@ export class NFTMetadataService {
       console.error('[NFTMetadataService] getMetadataByUser failed:', e);
     }
     return map;
+  }
+
+  /**
+   * Load cached NFT metadata rows for the current user.
+   * This is the DB-first source used by the NFT page.
+   */
+  static async listMetadataByUser(options: ListNFTMetadataOptions = {}): Promise<NFTMetadataRow[]> {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        const { data: { session: refreshed } } = await supabase.auth.refreshSession();
+        if (!refreshed) {
+          console.warn('[NFTMetadataService] No active Supabase session — cannot list NFT metadata');
+          return [];
+        }
+      }
+
+      const userId = this.getCurrentUserId();
+      let query = supabase
+        .from('nft_metadata')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false });
+
+      if (options.contractAddress) {
+        query = query.eq('contract_address', options.contractAddress.toLowerCase());
+      }
+
+      const { data, error } = await query;
+
+      if (error) {
+        console.error('[NFTMetadataService] listMetadataByUser error:', error);
+        if (isAuthError(error)) {
+          await supabase.auth.refreshSession();
+          let retry = supabase
+            .from('nft_metadata')
+            .select('*')
+            .eq('user_id', userId)
+            .order('created_at', { ascending: false });
+
+          if (options.contractAddress) {
+            retry = retry.eq('contract_address', options.contractAddress.toLowerCase());
+          }
+
+          const retryResult = await retry;
+          if (retryResult.error) {
+            console.error('[NFTMetadataService] listMetadataByUser retry failed:', retryResult.error);
+            return [];
+          }
+          return (retryResult.data as NFTMetadataRow[] | null) || [];
+        }
+        return [];
+      }
+
+      return (data as NFTMetadataRow[] | null) || [];
+    } catch (e) {
+      console.error('[NFTMetadataService] listMetadataByUser failed:', e);
+      return [];
+    }
   }
 
   /**
