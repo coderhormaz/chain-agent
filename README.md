@@ -90,9 +90,9 @@ user_wallets:
 Your `.env` file is already configured with:
 
 ```env
-VITE_SUPABASE_URL=https://xszzbatmvdcbnksdrywf.supabase.co
-VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-VITE_ENCRYPTION_KEY=opbnb-ai-assistant-encryption-key-2025
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key_here
+VITE_ENCRYPTION_KEY=your_encryption_key_here
 ```
 
 ## �️ Lighthouse IPFS Storage Setup (For NFT Images)
